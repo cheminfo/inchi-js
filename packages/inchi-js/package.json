@@ -15,11 +15,13 @@
   "author": "Luc Patiny",
   "type": "module",
   "exports": {
-    ".": "./lib/index.js"
+    ".": {
+      "types": "./lib/inchi-js.d.ts",
+      "default": "./lib/inchi-js.js"
+    }
   },
   "files": [
-    "lib",
-    "src"
+    "lib"
   ],
   "scripts": {
     "build-wasm": "bash build/build-wasm.sh",
@@ -28,17 +30,20 @@
     "eslint": "eslint src",
     "eslint-fix": "eslint src --fix",
     "prepack": "npm run tsc",
+    "prepublishOnly": "npm test",
     "prettier": "prettier --check src",
     "prettier-write": "prettier --write src",
-    "test": "npm run test-only && npm run check-types && npm run eslint && npm run prettier",
+    "test": "npm run test-only && npm run test-bundle && npm run check-types && npm run eslint && npm run prettier",
+    "test-bundle": "npm run tsc && vitest run --config vitest.config.bundle.ts",
     "test-only": "vitest run --coverage",
-    "tsc": "npm run clean && npm run tsc-build",
-    "tsc-build": "tsc --project tsconfig.build.json"
+    "tsc": "npm run clean && node build/bundle.js"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@vitest/coverage-v8": "^4.1.7",
     "@zakodium/tsconfig": "^1.0.5",
+    "dts-bundle-generator": "^9.5.1",
+    "esbuild": "^0.28.0",
     "eslint": "^9.39.4",
     "eslint-config-cheminfo-typescript": "^22.0.0",
     "prettier": "^3.8.3",

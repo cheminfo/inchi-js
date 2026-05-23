@@ -67,6 +67,23 @@ node "$SCRIPT_DIR/embed-wasm.js" \
   --out-data "$SRC_DIR/wasm-data.ts" \
   --out-glue "$SRC_DIR/wasm-glue.ts"
 
+VERSION_HEADER="$INCHI_SUBMODULE/INCHI-1-SRC/INCHI_BASE/src/bcf_s.h"
+INCHI_C_VERSION="$(grep -E '^[[:space:]]*#define[[:space:]]+CURRENT_VER[[:space:]]+"' "$VERSION_HEADER" | sed -E 's/.*"([^"]+)".*/\1/')"
+if [ -z "$INCHI_C_VERSION" ]; then
+  echo "error: could not parse CURRENT_VER from $VERSION_HEADER" >&2
+  exit 1
+fi
+echo ">> Writing IUPAC InChI C version $INCHI_C_VERSION to src/version.ts"
+cat > "$SRC_DIR/version.ts" <<EOF
+/**
+ * Version of the IUPAC InChI C library that the embedded WASM was
+ * compiled from. Extracted at WASM-build time from
+ * \`vendor/inchi/INCHI-1-SRC/INCHI_BASE/src/bcf_s.h\` (\`CURRENT_VER\`) by
+ * \`build/build-wasm.sh\`. Do not edit by hand.
+ */
+export const INCHI_C_VERSION = '$INCHI_C_VERSION';
+EOF
+
 WASM_SIZE=$(wc -c < "$WASM_PATH" | tr -d ' ')
 EMBED_SIZE=$(wc -c < "$SRC_DIR/wasm-data.ts" | tr -d ' ')
 echo ">> Built WASM: $WASM_SIZE bytes -> embedded module: $EMBED_SIZE bytes"

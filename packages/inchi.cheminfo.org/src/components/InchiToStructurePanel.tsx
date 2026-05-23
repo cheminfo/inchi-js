@@ -6,6 +6,8 @@ import { SvgRenderer } from 'react-ocl';
 
 import { inchiStructureToOclMolecule } from '../inchi/inchiToOclMolecule.ts';
 
+import { CopyButton } from './CopyButton.tsx';
+
 const STORAGE_KEY = 'inchi.cheminfo.org:inchi-to-structure:input:v1';
 const DEFAULT_INCHI =
   'InChI=1S/C9H18O2/c1-5-7(3)8(4)11-9(10)6-2/h7-8H,5-6H2,1-4H3/t7-,8+/m0/s1';
@@ -152,17 +154,32 @@ export function InchiToStructurePanel() {
         <summary className="muted" style={{ cursor: 'pointer', fontSize: 12 }}>
           Reconstructed Molfile
         </summary>
-        <pre
-          className="mono result-card"
-          style={{
-            marginTop: 8,
-            whiteSpace: 'pre-wrap',
-            maxHeight: 240,
-            overflow: 'auto',
-          }}
-        >
-          {result.molfile || '—'}
-        </pre>
+        <div className="result-card" style={{ marginTop: 8 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+            }}
+          >
+            <div className="muted" style={{ fontSize: 12 }}>
+              Molfile
+            </div>
+            <CopyButton value={result.molfile} label="Molfile" />
+          </div>
+          <pre
+            className="mono"
+            style={{
+              margin: 0,
+              whiteSpace: 'pre-wrap',
+              maxHeight: 240,
+              overflow: 'auto',
+            }}
+          >
+            {result.molfile || '—'}
+          </pre>
+        </div>
       </details>
     </div>
   );
@@ -171,8 +188,18 @@ export function InchiToStructurePanel() {
 function ResultRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="result-card">
-      <div className="muted" style={{ fontSize: 12 }}>
-        {label}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+        }}
+      >
+        <div className="muted" style={{ fontSize: 12 }}>
+          {label}
+        </div>
+        <CopyButton value={value} label={label} />
       </div>
       <div className="mono">{value || <span className="muted">—</span>}</div>
     </div>

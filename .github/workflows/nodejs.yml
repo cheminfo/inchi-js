@@ -1,5 +1,12 @@
 name: Node.js CI
 
+# Custom workflow (does not use the shared zakodium/workflows reusable)
+# because the IUPAC InChI regression tests require the `vendor/inchi`
+# git submodule, which the shared workflow does not initialize.
+# `npm test -w inchi-js` runs the full suite — including the 4,190+
+# molfile → InChI regression cases — against both the TypeScript
+# source and the bundled `lib/inchi-js.js` artifact.
+
 on:
   push:
     branches:
@@ -8,8 +15,13 @@ on:
 
 jobs:
   nodejs:
-    # Documentation: https://github.com/zakodium/workflows#nodejs
-    uses: zakodium/workflows/.github/workflows/nodejs.yml@nodejs-v1
-    with:
-      lint-check-types: true
-      disable-test-package: true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test -w inchi-js

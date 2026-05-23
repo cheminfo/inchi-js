@@ -31,3 +31,16 @@ async functions: `inchiFromMolfile`, `inchikeyFromInchi`,
 `molfileFromInchi`, `molfileFromAuxinfo`.
 
 WASM is instantiated lazily on first call and cached.
+
+The lib is shipped as a single bundled ESM file. `npm run tsc` (in
+`packages/inchi-js/`) runs `build/bundle.js`, which uses `esbuild` to
+produce `lib/inchi-js.js` (+ `.js.map`) plus a minified
+`lib/inchi-js.min.js`, and `dts-bundle-generator` to produce
+`lib/inchi-js.d.ts`. The published npm package contains only those
+four files plus `package.json` / `README.md` / `LICENSE`.
+
+The library targets the browser. Emscripten is invoked with
+`-sENVIRONMENT=web`, so the generated `src/wasm-glue.ts` contains no
+Node-only code paths. Decompression uses `DecompressionStream` and
+base64 decoding uses `atob` — both standard Web APIs available in
+every supported browser and in Node ≥ 18.

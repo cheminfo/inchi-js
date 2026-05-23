@@ -14,20 +14,10 @@ var inchiModule = (() => {
   return async function (moduleArg = {}) {
     var moduleRtn;
     var Module = moduleArg;
-    var ENVIRONMENT_IS_WEB = !!globalThis.window;
-    var ENVIRONMENT_IS_WORKER = !!globalThis.WorkerGlobalScope;
-    var ENVIRONMENT_IS_NODE =
-      globalThis.process?.versions?.node &&
-      globalThis.process?.type != 'renderer';
+    var ENVIRONMENT_IS_WEB = true;
+    var ENVIRONMENT_IS_WORKER = false;
     var arguments_ = [];
     var thisProgram = './this.program';
-    var quit_ = (status, toThrow) => {
-      throw toThrow;
-    };
-    if (typeof __filename != 'undefined') {
-      _scriptName = __filename;
-    } else {
-    }
     var scriptDirectory = '';
     function locateFile(path) {
       if (Module['locateFile']) {
@@ -36,28 +26,7 @@ var inchiModule = (() => {
       return scriptDirectory + path;
     }
     var readAsync, readBinary;
-    if (ENVIRONMENT_IS_NODE) {
-      var fs = require('node:fs');
-      scriptDirectory = __dirname + '/';
-      readBinary = (filename) => {
-        filename = isFileURI(filename) ? new URL(filename) : filename;
-        var ret = fs.readFileSync(filename);
-        return ret;
-      };
-      readAsync = async (filename, binary = true) => {
-        filename = isFileURI(filename) ? new URL(filename) : filename;
-        var ret = fs.readFileSync(filename, binary ? undefined : 'utf8');
-        return ret;
-      };
-      if (process.argv.length > 1) {
-        thisProgram = process.argv[1].replace(/\\/g, '/');
-      }
-      arguments_ = process.argv.slice(2);
-      quit_ = (status, toThrow) => {
-        process.exitCode = status;
-        throw toThrow;
-      };
-    } else if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
+    if (ENVIRONMENT_IS_WEB || ENVIRONMENT_IS_WORKER) {
       try {
         scriptDirectory = new URL('.', _scriptName).href;
       } catch {}
@@ -76,7 +45,6 @@ var inchiModule = (() => {
     var err = console.error.bind(console);
     var wasmBinary;
     var ABORT = false;
-    var isFileURI = (filename) => filename.startsWith('file://');
     class EmscriptenEH {}
     class EmscriptenSjLj extends EmscriptenEH {}
     var readyPromiseResolve, readyPromiseReject;
@@ -164,7 +132,7 @@ var inchiModule = (() => {
       }
     }
     async function instantiateAsync(binary, binaryFile, imports) {
-      if (!binary && !ENVIRONMENT_IS_NODE) {
+      if (!binary) {
         try {
           var response = fetch(binaryFile, { credentials: 'same-origin' });
           var instantiationResult = await WebAssembly.instantiateStreaming(
@@ -355,13 +323,7 @@ var inchiModule = (() => {
       join: (...paths) => PATH.normalize(paths.join('/')),
       join2: (l, r) => PATH.normalize(l + '/' + r),
     };
-    var initRandomFill = () => {
-      if (ENVIRONMENT_IS_NODE) {
-        var nodeCrypto = require('node:crypto');
-        return (view) => nodeCrypto.randomFillSync(view);
-      }
-      return (view) => (crypto.getRandomValues(view), 0);
-    };
+    var initRandomFill = () => (view) => (crypto.getRandomValues(view), 0);
     var randomFill = (view) => (randomFill = initRandomFill())(view);
     var PATH_FS = {
       resolve: (...args) => {
@@ -527,21 +489,7 @@ var inchiModule = (() => {
     var FS_stdin_getChar = () => {
       if (!FS_stdin_getChar_buffer.length) {
         var result = null;
-        if (ENVIRONMENT_IS_NODE) {
-          var BUFSIZE = 256;
-          var buf = Buffer.alloc(BUFSIZE);
-          var bytesRead = 0;
-          var fd = process.stdin.fd;
-          try {
-            bytesRead = fs.readSync(fd, buf, 0, BUFSIZE);
-          } catch (e) {
-            if (e.toString().includes('EOF')) bytesRead = 0;
-            else throw e;
-          }
-          if (bytesRead > 0) {
-            result = buf.slice(0, bytesRead).toString('utf-8');
-          }
-        } else if (globalThis.window?.prompt) {
+        if (globalThis.window?.prompt) {
           result = window.prompt('Input: ');
           if (result !== null) {
             result += '\n';

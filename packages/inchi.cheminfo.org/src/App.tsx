@@ -1,12 +1,54 @@
+import { Tab, Tabs } from '@blueprintjs/core';
+import { INCHI_C_VERSION } from 'inchi-js';
+import { useCallback, useEffect, useState } from 'react';
+
+import { AboutPanel } from './components/AboutPanel.tsx';
+import { DownloadPanel } from './components/DownloadPanel.tsx';
 import { InchiToStructurePanel } from './components/InchiToStructurePanel.tsx';
 import { StructureToInchiPanel } from './components/StructureToInchiPanel.tsx';
+import { TestsPanel } from './components/TestsPanel.tsx';
+
+type TabId = 'convert' | 'tests' | 'download' | 'about';
+
+const VALID_TABS: TabId[] = ['convert', 'tests', 'download', 'about'];
+
+function readInitialTab(): TabId {
+  const raw = globalThis.location.hash.replace(/^#\/?/, '').split('/')[0];
+  if (VALID_TABS.includes(raw as TabId)) return raw as TabId;
+  return 'convert';
+}
 
 /**
- * Root of the playground. Two side-by-side panels: structure → InChI on
- * the left, InChI → structure on the right.
+ * Root of the playground. Four tabs:
+ *
+ *   • Convert — structure ↔ InChI live conversion.
+ *   • Tests — Molfile → InChI (must pass) and full
+ *     Molfile → InChI → Molfile roundtrip (exploratory) against the
+ *     vendored IUPAC test SDFs.
+ *   • Download — grab the prebuilt single-file ESM bundle and see
+ *     how to embed it in plain HTML, in a bundler, or via npm.
+ *   • About — project background, attribution, and academic
+ *     citations for InChI and OpenChemLib.
  * @returns The application root.
  */
 export function App() {
+  const [tabId, setTabId] = useState<TabId>(() => readInitialTab());
+
+  useEffect(() => {
+    const onHashChange = () => setTabId(readInitialTab());
+    globalThis.addEventListener('hashchange', onHashChange);
+    return () => globalThis.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  const handleTabChange = useCallback((next: string | number) => {
+    const candidate = String(next);
+    const nextTab = VALID_TABS.includes(candidate as TabId)
+      ? (candidate as TabId)
+      : 'convert';
+    setTabId(nextTab);
+    globalThis.history.replaceState(null, '', `#/${nextTab}`);
+  }, []);
+
   return (
     <div className="app-shell">
       <div
@@ -24,12 +66,13 @@ export function App() {
         </h1>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
           <a
-            href={`https://www.npmjs.com/package/inchi-js/v/${import.meta.env.INCHI_JS_VERSION}`}
+            href="https://github.com/IUPAC-InChI/InChI"
             target="_blank"
             rel="noreferrer"
             style={{ fontSize: 13 }}
+            title="Version of the IUPAC InChI C library compiled to the embedded WASM"
           >
-            inchi-js v{import.meta.env.INCHI_JS_VERSION}
+            IUPAC InChI v{INCHI_C_VERSION}
           </a>
           <a
             href="https://github.com/cheminfo/inchi"
@@ -41,10 +84,44 @@ export function App() {
           </a>
         </div>
       </div>
-      <div className="panel-grid">
-        <StructureToInchiPanel />
-        <InchiToStructurePanel />
-      </div>
+
+      <Tabs
+        id="root-tabs"
+        size="large"
+        selectedTabId={tabId}
+        onChange={handleTabChange}
+        renderActiveTabPanelOnly
+      >
+        <Tab
+          id="convert"
+          title="Convert"
+          panel={
+            <div className="panel-grid" style={{ marginTop: 12 }}>
+              <StructureToInchiPanel />
+              <InchiToStructurePanel />
+            </div>
+          }
+        />
+        <Tab id="tests" title="Tests" panel={<TestsPanel />} />
+        <Tab
+          id="download"
+          title="Download"
+          panel={
+            <div style={{ marginTop: 12 }}>
+              <DownloadPanel />
+            </div>
+          }
+        />
+        <Tab
+          id="about"
+          title="About"
+          panel={
+            <div style={{ marginTop: 12 }}>
+              <AboutPanel />
+            </div>
+          }
+        />
+      </Tabs>
     </div>
   );
 }

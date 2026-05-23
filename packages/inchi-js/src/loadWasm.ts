@@ -37,24 +37,7 @@ export function loadInchiWasm(): Promise<InchiModule> {
 
 async function decompressWasm(base64: string): Promise<Uint8Array> {
   const compressed = base64ToBytes(base64);
-  // `DecompressionStream` is supported in every browser shipping
-  // WebAssembly and in Node ≥ 18. Falling through to `node:zlib`
-  // covers older Node versions still able to run this library.
-  if (typeof DecompressionStream !== 'undefined') {
-    return decompressViaStream(compressed);
-  }
-  const { gunzipSync } = await import('node:zlib');
-  return new Uint8Array(gunzipSync(compressed));
-}
-
-async function decompressViaStream(
-  compressed: Uint8Array,
-): Promise<Uint8Array> {
-  // Force the buffer into a fresh ArrayBuffer so Blob's typing
-  // accepts it (DOM types disallow SharedArrayBuffer-backed views).
-  const copy = new Uint8Array(compressed.byteLength);
-  copy.set(compressed);
-  const stream = new Blob([copy.buffer])
+  const stream = new Blob([compressed.buffer as ArrayBuffer])
     .stream()
     .pipeThrough(new DecompressionStream('gzip'));
   const buffer = await new Response(stream).arrayBuffer();
@@ -62,9 +45,6 @@ async function decompressViaStream(
 }
 
 function base64ToBytes(base64: string): Uint8Array {
-  if (typeof Buffer !== 'undefined') {
-    return Uint8Array.from(Buffer.from(base64, 'base64'));
-  }
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {

@@ -3,7 +3,7 @@ export { inchikeyFromInchi } from './inchikeyFromInchi.ts';
 export { molfileFromInchi } from './molfileFromInchi.ts';
 export { molfileFromAuxinfo } from './molfileFromAuxinfo.ts';
 export { structureFromInchi } from './structureFromInchi.ts';
-export { loadInchiWasm } from './loadWasm.ts';
+export { INCHI_C_VERSION } from './version.ts';
 export type {
   InchiFromMolfileOptions,
   InchiFromMolfileResult,

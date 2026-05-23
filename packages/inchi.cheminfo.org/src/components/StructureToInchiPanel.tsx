@@ -6,6 +6,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CanvasEditorOnChangeMolecule } from 'react-ocl';
 import { CanvasMoleculeEditor } from 'react-ocl';
 
+import { CopyButton } from './CopyButton.tsx';
+
 const INITIAL_SMILES = 'CC(=O)OCC';
 const STORAGE_KEY = 'inchi.cheminfo.org:structure-to-inchi:idcode:v1';
 
@@ -63,6 +65,14 @@ export function StructureToInchiPanel() {
   const lastIdCodeRef = useRef<string>(storedIdCode);
   const [result, setResult] = useState<Result>(EMPTY_RESULT);
   const [pending, setPending] = useState(false);
+  const [pasteError, setPasteError] = useState<string | null>(null);
+  const [editorMolfile, setEditorMolfile] = useState<string>(() => {
+    try {
+      return Molecule.fromIDCode(storedIdCode).toMolfile();
+    } catch {
+      return Molecule.fromSmiles(INITIAL_SMILES).toMolfile();
+    }
+  });
 
   const runConversion = useCallback(async (idCode: string) => {
     if (!idCode) {
@@ -140,27 +150,65 @@ export function StructureToInchiPanel() {
     }
   }, [result.idCode]);
 
-  const initialMolfile = useMemo(() => {
+  const handlePaste = useCallback(async () => {
+    setPasteError(null);
     try {
-      return Molecule.fromIDCode(storedIdCode).toMolfile();
-    } catch {
-      return Molecule.fromSmiles(INITIAL_SMILES).toMolfile();
+      const text = await navigator.clipboard?.readText();
+      if (!text?.trim()) {
+        setPasteError('Clipboard is empty.');
+        return;
+      }
+      const molecule = Molecule.fromText(text);
+      if (!molecule || molecule.getAllAtoms() === 0) {
+        setPasteError(
+          'Could not parse clipboard content as Molfile, SMILES, or idCode.',
+        );
+        return;
+      }
+      const molfile = molecule.toMolfile();
+      const idCode = molecule.getIDCode();
+      lastIdCodeRef.current = idCode;
+      setEditorMolfile(molfile);
+      void runConversion(idCode);
+    } catch (error) {
+      setPasteError(error instanceof Error ? error.message : String(error));
     }
-  }, [storedIdCode]);
+  }, [runConversion]);
 
   return (
     <div className="panel">
       <h2 className="section-title">
         <Icon icon="arrow-right" /> Structure → InChI
       </h2>
-      <div className="muted">
-        Draw or edit a molecule. The InChI string and InChIKey are regenerated
-        on every change.
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+        }}
+      >
+        <div className="muted">
+          Draw or edit a molecule. The InChI string and InChIKey are regenerated
+          on every change.
+        </div>
+        <Button
+          size="small"
+          icon="clipboard"
+          variant="minimal"
+          title="Paste a Molfile, SMILES, or idCode from the clipboard"
+          onClick={() => {
+            void handlePaste();
+          }}
+        >
+          Paste
+        </Button>
       </div>
+      {pasteError && <div className="error-card">{pasteError}</div>}
       <div className="editor-frame" style={{ height: 380 }}>
         <CanvasMoleculeEditor
           inputFormat="molfile"
-          inputValue={initialMolfile}
+          inputValue={editorMolfile}
           onChange={handleChange}
         />
       </div>
@@ -203,13 +251,6 @@ function ResultRow({
   value: string;
   placeholder?: string;
 }) {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = useCallback(() => {
-    void navigator.clipboard?.writeText(value).then(() => {
-      setCopied(true);
-      globalThis.setTimeout(() => setCopied(false), 1500);
-    });
-  }, [value]);
   return (
     <div className="result-card">
       <div
@@ -223,17 +264,7 @@ function ResultRow({
         <div className="muted" style={{ fontSize: 12 }}>
           {label}
         </div>
-        {value && (
-          <Button
-            size="small"
-            icon={copied ? 'tick' : 'duplicate'}
-            variant="minimal"
-            title={`Copy ${label} to clipboard`}
-            onClick={handleCopy}
-          >
-            {copied ? 'Copied' : 'Copy'}
-          </Button>
-        )}
+        <CopyButton value={value} label={label} />
       </div>
       <div className="mono">
         {value || <span className="muted">{placeholder ?? '—'}</span>}
@@ -245,8 +276,18 @@ function ResultRow({
 function KeyValue({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="muted" style={{ fontSize: 12 }}>
-        {label}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 8,
+        }}
+      >
+        <div className="muted" style={{ fontSize: 12 }}>
+          {label}
+        </div>
+        <CopyButton value={value} label={label} />
       </div>
       <div className="mono">{value || '—'}</div>
     </div>

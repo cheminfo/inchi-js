@@ -40,7 +40,7 @@ if(EMSCRIPTEN)
         "-sEXPORTED_RUNTIME_METHODS=${EXPORTED_RUNTIME_METHODS}"
         "-sEXPORT_NAME='${MODULE_NAME}'"
         "-sMODULARIZE"
-        "-sENVIRONMENT=web,node"
+        "-sENVIRONMENT=web"
         "-sSTACK_SIZE=2097152"
         "-sALLOW_MEMORY_GROWTH=1"
         "-O3"

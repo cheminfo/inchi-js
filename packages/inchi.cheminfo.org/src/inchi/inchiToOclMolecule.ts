@@ -18,18 +18,12 @@ const INCHI_BOND_TYPE_AROMATIC = 4;
  * the parsed 0D tetrahedral stereo as OCL atom parities, invents 2D
  * coordinates, and materialises wedge bonds.
  *
- * The result can be passed straight to `react-ocl`'s `SvgRenderer`
- * for display, or serialised with `toMolfile()` / `toIsomericSmiles()`
- * — and unlike the IUPAC `-OutputSDF` writer, the stereochemistry
- * round-trips back into the source InChI.
- *
- * Hydrogens are intentionally treated as implicit even when the InChI
- * library returns them as explicit atoms: OCL's `inventCoordinates()`
- * silently strips explicit Hs, which reshuffles the "highest-index
- * neighbour" used by OCL's parity convention and silently inverts the
- * chirality at any centre whose explicit H was the highest neighbour.
- * Skipping Hs at construction time keeps the parity translation
- * self-consistent.
+ * Plain explicit Hs returned by the InChI library are deliberately
+ * skipped — OCL manages them as implicit Hs and `inventCoordinates()`
+ * would strip them anyway. The parity translation maps any skipped H
+ * (or any InChI `No_Neighbor` / centralAtom-as-sentinel slot) to a
+ * pseudo-index above every real atom, which matches OCL's "implicit H
+ * goes to the back" convention.
  * @param structure - The parsed structure from `structureFromInchi`.
  * @returns A ready-to-render OCL `Molecule` with 2D coords and wedge bonds.
  */
@@ -44,9 +38,6 @@ export function inchiStructureToOclMolecule(
     Math.max(atomCount * 2, 16),
   );
 
-  // Map InChI atom indices → OCL atom indices, with `-1` for any InChI
-  // atom we deliberately skip (explicit H atoms with no isotope or
-  // charge — they belong on the implicit-H count of their neighbour).
   const inchiToOcl = new Array<number>(atomCount).fill(-1);
   for (let i = 0; i < atomCount; i++) {
     const atom = atoms[i];
@@ -60,19 +51,15 @@ export function inchiStructureToOclMolecule(
     inchiToOcl[i] = oclIndex;
   }
 
-  // Each bond appears in either or both adjacency lists; iterate from
-  // the low-indexed endpoint to avoid double-adding. Bonds to skipped
-  // (plain-H) atoms are dropped — OCL will recover them via implicit
-  // hydrogens on the heavy-atom side.
   for (let i = 0; i < atomCount; i++) {
     const fromAtom = atoms[i];
     if (!fromAtom) continue;
     const fromOcl = inchiToOcl[i];
-    if (fromOcl === -1) continue;
+    if (fromOcl === undefined || fromOcl === -1) continue;
     for (const bond of fromAtom.bonds) {
       if (i >= bond.to) continue;
       const toOcl = inchiToOcl[bond.to];
-      if (toOcl === -1) continue;
+      if (toOcl === undefined || toOcl === -1) continue;
       const oclBondIndex = molecule.addBond(fromOcl, toOcl);
       const oclBondType = inchiBondTypeToOcl(bond.type);
       if (oclBondType !== Molecule.cBondTypeSingle) {
@@ -109,22 +96,27 @@ function isPlainHydrogen(atom: StructureAtom): boolean {
 }
 
 /**
- * Maps an InChI 0D tetrahedral parity to OCL's atom parity, accounting
- * for the difference in neighbour ordering (InChI uses its native
- * neighbour list; OCL sorts neighbours by atom index with the implicit
- * H / highest index in the back) and the resulting view-direction sign
- * change.
+ * Maps an InChI 0D tetrahedral parity to OCL's atom parity.
  *
- * Tracks the sign of the permutation that re-orders InChI's neighbour
- * list into OCL's canonical `[highest, others_ascending]` ordering,
- * after mapping every InChI neighbour through `inchiToOcl`. Any
- * neighbour that we skipped at construction (plain Hs) or that InChI
- * itself flagged as implicit (the `-1` `No_Neighbor` slot, or the
- * 3-explicit-neighbour case's `centralAtom`-as-sentinel) becomes a
- * pseudo-index that sorts above every real OCL atom, matching OCL's
- * "implicit H goes to the back" convention. The InChI parity sign
- * times that permutation sign is the sign in OCL's canonical ordering,
- * which translates directly to OCL parity 1 (negative) or 2 (positive).
+ * InChI's convention (`inchi_Stereo0D`): given `neighbour[0..3]` with
+ * `parity` = `'e'` (even, value 2) or `'o'` (odd, value 1), parity `'e'`
+ * means `(neighbour[1], neighbour[2], neighbour[3])` appear clockwise
+ * when viewed from `neighbour[0]`.
+ *
+ * OCL's convention (`Molecule.setAtomParity`): with the highest-indexed
+ * neighbour (or the implicit H) in the back and the remaining three
+ * listed in ascending atom index, parity 1 means CW from the front and
+ * parity 2 means CCW.
+ *
+ * Translation: compute the sign of the permutation that re-orders
+ * InChI's neighbour list into `[highest, others_ascending]` (mapping
+ * every InChI atom index through `inchiToOcl`, and replacing any
+ * implicit-H slot — InChI's `-1` `No_Neighbor`, the 3-explicit-
+ * neighbour `centralAtom`-as-sentinel, or any plain H we omitted from
+ * the OCL graph — with a pseudo-index above every real OCL atom). The
+ * InChI parity sign times that permutation sign is the sign in OCL's
+ * canonical ordering, which maps directly to OCL parity 1 (negative)
+ * or 2 (positive).
  * @param entry - The InChI 0D stereo descriptor.
  * @param inchiToOcl - Map from InChI atom index to OCL atom index,
  *   `-1` for atoms (plain Hs) deliberately omitted from the OCL graph.
@@ -151,11 +143,6 @@ function translateTetrahedralParity(
     return Molecule.cAtomParityUnknown;
   }
 
-  // Any neighbour we treat as implicit-H from OCL's perspective gets a
-  // pseudo-index above every real OCL atom. That covers: InChI's `-1`
-  // `No_Neighbor` slot, the 3-explicit-neighbour sentinel where
-  // `neighbour[0] === centralAtom`, AND every plain explicit H we
-  // dropped from the OCL graph (which OCL now treats as implicit).
   const phantomBase = inchiToOcl.length;
   let phantomCounter = 0;
   const indexed = entry.neighbors.map((nb) => {
