@@ -1,13 +1,28 @@
-name: Deploy on lactame.com
+name: Deploy inchi-js on lactame.com
 
 on:
   workflow_dispatch:
-  release:
-    types: [published]
+  push:
+    tags:
+      - 'inchi-js-v*'
 
 jobs:
   deploy:
-    # Documentation: https://github.com/zakodium/workflows#lactame-deploy
-    uses: zakodium/workflows/.github/workflows/lactame-deploy.yml@lactame-deploy-v1
-    secrets:
-      lactame-token: ${{ secrets.LACTAME_TOKEN }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm run tsc -w inchi-js
+      - name: Read inchi-js version
+        run: echo "INCHI_JS_VERSION=$(jq -r .version packages/inchi-js/package.json)" >> $GITHUB_ENV
+      - uses: zakodium/lactame-action@v1
+        with:
+          token: ${{ secrets.LACTAME_TOKEN }}
+          name: inchi-js
+          version: ${{ env.INCHI_JS_VERSION }}
+          folder: packages/inchi-js/lib
