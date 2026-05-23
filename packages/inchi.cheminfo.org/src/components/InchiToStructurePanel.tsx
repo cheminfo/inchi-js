@@ -142,7 +142,14 @@ export function InchiToStructurePanel() {
 
       <div className="structure-svg-wrap" style={{ minHeight: 280 }}>
         {hasStructure && result.molecule ? (
-          <SvgRenderer molecule={result.molecule} width={420} height={260} />
+          <SvgRenderer
+            molecule={result.molecule}
+            width={420}
+            height={260}
+            suppressChiralText={false}
+            suppressESR={false}
+            suppressCIPParity={false}
+          />
         ) : (
           <span className="muted">
             {pending ? 'Computing…' : 'No structure yet.'}
