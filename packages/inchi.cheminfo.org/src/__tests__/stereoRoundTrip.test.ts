@@ -1,7 +1,10 @@
-import { inchiFromMolfile, structureFromInchi } from 'inchi-js';
+import {
+  inchiFromMolfile,
+  oclMoleculeFromStructure,
+  structureFromInchi,
+} from 'inchi-js';
+import * as OCL from 'openchemlib';
 import { expect, test } from 'vitest';
-
-import { inchiStructureToOclMolecule } from '../inchi/inchiToOclMolecule.ts';
 
 // Cases that round-trip correctly through `InChI → OCL Molecule →
 // molfile → InChI` today.
@@ -21,7 +24,7 @@ test.each(STEREO_INCHIS)('round-trips stereo: %s', async (sourceInchi) => {
 
   expect(structure.returnCode).toBe(0);
 
-  const molecule = inchiStructureToOclMolecule(structure);
+  const molecule = oclMoleculeFromStructure(structure, OCL);
   const molfile = molecule.toMolfile();
 
   const back = await inchiFromMolfile(molfile);
@@ -34,7 +37,7 @@ test('non-chiral InChI round-trips identically', async () => {
   const sourceInchi =
     'InChI=1S/C8H10N4O2/c1-10-4-9-6-5(10)7(13)12(3)8(14)11(6)2/h4H,1-3H3';
   const structure = await structureFromInchi(sourceInchi);
-  const molecule = inchiStructureToOclMolecule(structure);
+  const molecule = oclMoleculeFromStructure(structure, OCL);
   const molfile = molecule.toMolfile();
   const back = await inchiFromMolfile(molfile);
 
@@ -55,13 +58,10 @@ test.skip.each([
   'InChI=1S/C9H16/c1-3-9-6-4-8(2)5-7-9/h3,8H,4-7H2,1-2H3/b9-3-/t8-/m1/s1',
   // D-glucose (β-D-glucopyranose) — five chiral centres on one ring.
   'InChI=1S/C6H12O6/c7-1-2-3(8)4(9)5(10)6(11)12-2/h2-11H,1H2/t2-,3-,4+,5-,6-/m1/s1',
-])(
-  'BLOCKED on OCL bug — round-trips stereo: %s',
-  async (sourceInchi) => {
-    const structure = await structureFromInchi(sourceInchi);
-    const molecule = inchiStructureToOclMolecule(structure);
-    const back = await inchiFromMolfile(molecule.toMolfile());
+])('BLOCKED on OCL bug — round-trips stereo: %s', async (sourceInchi) => {
+  const structure = await structureFromInchi(sourceInchi);
+  const molecule = oclMoleculeFromStructure(structure, OCL);
+  const back = await inchiFromMolfile(molecule.toMolfile());
 
-    expect(back.inchi).toBe(sourceInchi);
-  },
-);
+  expect(back.inchi).toBe(sourceInchi);
+});

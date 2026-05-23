@@ -1,66 +1,55 @@
+import type { IteratorMolecule } from 'sdf-parser';
+import { iterator } from 'sdf-parser';
+
 /**
- * Fetch and gunzip a gzipped SDF served at `/test-data/<filename>`.
+ * Stream a gzipped SDF resource and yield each parsed molecule. The
+ * response body is piped through `DecompressionStream('gzip')`,
+ * decoded to text, and handed to `sdf-parser`'s async iterator — the
+ * full uncompressed SDF text never materialises in memory.
  * @param url - The fully-qualified URL of the `.sdf.gz` resource.
- * @returns The decoded UTF-8 SDF text.
+ * @yields {IteratorMolecule} One parsed molecule per SDF record, with
+ *   `.molfile` and any `> <Field>` data fields exposed as properties.
  */
-export async function fetchGzippedSdf(url: string): Promise<string> {
+export async function* streamSdfMolecules(
+  url: string,
+): AsyncGenerator<IteratorMolecule> {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`HTTP ${response.status} fetching ${url}`);
   }
-  const compressed = await response.arrayBuffer();
-  const copy = new Uint8Array(compressed.byteLength);
-  copy.set(new Uint8Array(compressed));
-  const stream = new Blob([copy.buffer])
-    .stream()
-    .pipeThrough(new DecompressionStream('gzip'));
-  const buffer = await new Response(stream).arrayBuffer();
-  return new TextDecoder('utf-8').decode(buffer);
-}
-
-/**
- * Iterate every record in an SDF blob. Records that contain no
- * `M  END` marker are skipped (the file ends with one such empty
- * record after the trailing `$$$$`).
- * @param text - The full SDF blob.
- * @yields {string} The raw record text (no trailing `$$$$`).
- */
-export function* iterateSdfRecords(text: string): Generator<string> {
-  // Split on `$$$$` plus its trailing newline so the next record's
-  // title line starts at the very beginning. The leading separator
-  // newline otherwise pushes the V2000 counts line one row down and
-  // breaks the InChI parser.
-  for (const part of text.split(/\$\$\$\$\r?\n?/)) {
-    if (!part.includes('M  END')) continue;
-    yield part;
+  if (!response.body) {
+    throw new Error(`Empty response body for ${url}`);
   }
+  const textStream = response.body
+    .pipeThrough(new DecompressionStream('gzip'))
+    .pipeThrough(new TextDecoderStream());
+  yield* iterator(textStream);
 }
 
+const ID_TAGS = ['ID', 'Mcule_ID', 'PUBCHEM_CID', 'CAS', 'Name'];
+
 /**
- * Extract the `molfile_id` used by the upstream IUPAC test corpus.
- * @param record - A single SDF record (no `$$$$` terminator).
+ * Extract the identifier for a parsed SDF molecule.
+ *
+ * Lookup order:
+ *
+ * 1. A known ID-bearing SDF data field — `ID`, `Mcule_ID`,
+ *    `PUBCHEM_CID`, `CAS`, or `Name` (matched case-sensitively as
+ *    sdf-parser exposes them).
+ * 2. The molfile title line (V2000 line 1). Catches CCDC refcodes
+ *    (`SOWFAL`, `CHPMOB`, …) and PubChem CIDs that the upstream SDFs
+ *    put there instead of a tagged field.
+ * 3. Empty string. The caller then falls back to `record-N`.
+ * @param molecule - A molecule object yielded by sdf-parser.
  * @returns The id text, or an empty string when none is found.
  */
-export function getMolfileId(record: string): string {
-  const mculeMatch = /<Mcule_ID>(?<id>[\S\s]*?)>/.exec(record);
-  if (mculeMatch?.groups?.id !== undefined) {
-    return mculeMatch.groups.id.trim();
+export function getMolfileId(molecule: IteratorMolecule): string {
+  for (const tag of ID_TAGS) {
+    const raw = molecule[tag];
+    if (raw === undefined || raw === null) continue;
+    const value = String(raw).trim();
+    if (value) return value;
   }
-  const lines = record.split(/\r?\n/);
-  return (lines.at(-3) ?? '').trim();
-}
-
-/**
- * Slice out the V2000/V3000 Molfile portion of an SDF record
- * (everything up to and including the `M  END` line). The SDF data
- * fields that follow are dropped so we hand a clean Molfile to the
- * InChI engine.
- * @param record - The full SDF record text.
- * @returns Just the Molfile.
- */
-export function extractMolfile(record: string): string {
-  const lines = record.split(/\r?\n/);
-  const endIndex = lines.findIndex((line) => line.startsWith('M  END'));
-  if (endIndex === -1) return record;
-  return `${lines.slice(0, endIndex + 1).join('\n')}\n`;
+  const titleLine = molecule.molfile.split(/\r?\n/, 1)[0];
+  return titleLine?.trim() ?? '';
 }

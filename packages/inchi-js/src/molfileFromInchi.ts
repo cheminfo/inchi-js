@@ -1,8 +1,8 @@
-import { callJsonReturning } from './loadWasm.ts';
 import type {
   MolfileFromInchiOptions,
   MolfileFromInchiResult,
 } from './types.ts';
+import { callJsonReturning } from './wasm/loadWasm.ts';
 
 interface RawResult {
   /* eslint-disable @typescript-eslint/naming-convention -- shape comes from the C wrapper JSON */

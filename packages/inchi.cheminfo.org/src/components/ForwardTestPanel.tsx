@@ -63,6 +63,10 @@ export function ForwardTestPanel() {
     [selectedDatasetId],
   );
 
+  const handleDatasetChange = useCallback((id: string) => {
+    setSelectedDatasetId(id);
+  }, []);
+
   const baseUrl = import.meta.env.BASE_URL || '/';
 
   useEffect(() => {
@@ -125,6 +129,7 @@ export function ForwardTestPanel() {
       type: 'run',
       url: new URL(url, globalThis.location.href).toString(),
       inchiOptions: inchiOptionsFor(selectedDataset),
+      approxTotal: selectedDataset.approxCount,
     };
     worker.postMessage(payload);
   }, [baseUrl, running, selectedDataset]);
@@ -171,7 +176,7 @@ export function ForwardTestPanel() {
         <HTMLSelect
           id="forward-dataset-select"
           value={selectedDatasetId}
-          onChange={(event) => setSelectedDatasetId(event.currentTarget.value)}
+          onChange={(event) => handleDatasetChange(event.currentTarget.value)}
           disabled={running}
         >
           {TEST_DATASETS.map((dataset) => (

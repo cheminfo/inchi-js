@@ -1,9 +1,15 @@
+import type * as OCLNamespace from 'openchemlib';
+
+import { structureFromInchi } from './structureFromInchi.ts';
 import type {
   StructureAtom,
+  StructureFromInchiOptions,
   StructureFromInchiResult,
   StructureStereo,
-} from 'inchi-js';
-import { Molecule } from 'openchemlib';
+} from './types.ts';
+
+type OCL = typeof OCLNamespace;
+type Molecule = OCLNamespace.Molecule;
 
 const INCHI_STEREO_TYPE_TETRAHEDRAL = 2;
 
@@ -13,10 +19,60 @@ const INCHI_BOND_TYPE_TRIPLE = 3;
 const INCHI_BOND_TYPE_AROMATIC = 4;
 
 /**
+ * Result of `oclMoleculeFromInchi`.
+ */
+export interface OclMoleculeFromInchiResult {
+  /**
+   * The OCL `Molecule` (with 2D coords and wedge bonds), or `null` when
+   * the InChI could not be parsed (`returnCode === -1`).
+   */
+  molecule: Molecule | null;
+  /** Return code from the underlying C API (`-1` error, `0` ok, `1` warning). */
+  returnCode: -1 | 0 | 1;
+  /** Human-readable message (warnings/errors). */
+  message: string;
+  /** Detailed log from the C API. */
+  log: string;
+}
+
+/**
+ * Parses an InChI string into an `openchemlib` `Molecule` with 2D
+ * coordinates, wedge bonds, and tetrahedral parities materialised from
+ * the InChI 0D stereo layer.
+ *
+ * `openchemlib` is **not** a runtime dependency of `inchi-js` — the
+ * caller passes their own `OCL` namespace so the same `Molecule` build
+ * (regular, debug, …) is used end-to-end and only one copy ends up in
+ * the consumer's bundle. Use {@link oclMoleculeFromStructure}
+ * synchronously if you already hold a parsed structure.
+ * @param inchi - The full InChI string.
+ * @param OCL - The `openchemlib` module (e.g. `import * as OCL from 'openchemlib'`).
+ * @param options - Optional InChI option string passed to `structureFromInchi`.
+ * @returns The OCL `Molecule` (or `null` on error) plus the C API status.
+ */
+export async function oclMoleculeFromInchi(
+  inchi: string,
+  OCL: OCL,
+  options: StructureFromInchiOptions = {},
+): Promise<OclMoleculeFromInchiResult> {
+  const structure = await structureFromInchi(inchi, options);
+  const molecule =
+    structure.returnCode === -1
+      ? null
+      : oclMoleculeFromStructure(structure, OCL);
+  return {
+    molecule,
+    returnCode: structure.returnCode,
+    message: structure.message,
+    log: structure.log,
+  };
+}
+
+/**
  * Builds an `openchemlib` `Molecule` from the raw structure that
- * `structureFromInchi` extracts from the IUPAC InChI library, applies
- * the parsed 0D tetrahedral stereo as OCL atom parities, invents 2D
- * coordinates, and materialises wedge bonds.
+ * {@link structureFromInchi} extracts from the IUPAC InChI library,
+ * applies the parsed 0D tetrahedral stereo as OCL atom parities,
+ * invents 2D coordinates, and materialises wedge bonds.
  *
  * Plain explicit Hs returned by the InChI library are deliberately
  * skipped — OCL manages them as implicit Hs and `inventCoordinates()`
@@ -25,15 +81,17 @@ const INCHI_BOND_TYPE_AROMATIC = 4;
  * pseudo-index above every real atom, which matches OCL's "implicit H
  * goes to the back" convention.
  * @param structure - The parsed structure from `structureFromInchi`.
+ * @param OCL - The `openchemlib` module (e.g. `import * as OCL from 'openchemlib'`).
  * @returns A ready-to-render OCL `Molecule` with 2D coords and wedge bonds.
  */
-export function inchiStructureToOclMolecule(
+export function oclMoleculeFromStructure(
   structure: StructureFromInchiResult,
+  OCL: OCL,
 ): Molecule {
   const { atoms, stereo } = structure;
   const atomCount = atoms.length;
 
-  const molecule = new Molecule(
+  const molecule = new OCL.Molecule(
     Math.max(atomCount, 16),
     Math.max(atomCount * 2, 16),
   );
@@ -43,7 +101,7 @@ export function inchiStructureToOclMolecule(
     const atom = atoms[i];
     if (!atom) continue;
     if (isPlainHydrogen(atom)) continue;
-    const atomicNo = Molecule.getAtomicNoFromLabel(atom.element);
+    const atomicNo = OCL.Molecule.getAtomicNoFromLabel(atom.element);
     const oclIndex = molecule.addAtom(atomicNo);
     if (atom.charge) molecule.setAtomCharge(oclIndex, atom.charge);
     if (atom.isotopicMass) molecule.setAtomMass(oclIndex, atom.isotopicMass);
@@ -61,8 +119,8 @@ export function inchiStructureToOclMolecule(
       const toOcl = inchiToOcl[bond.to];
       if (toOcl === undefined || toOcl === -1) continue;
       const oclBondIndex = molecule.addBond(fromOcl, toOcl);
-      const oclBondType = inchiBondTypeToOcl(bond.type);
-      if (oclBondType !== Molecule.cBondTypeSingle) {
+      const oclBondType = inchiBondTypeToOcl(bond.type, OCL);
+      if (oclBondType !== OCL.Molecule.cBondTypeSingle) {
         molecule.setBondType(oclBondIndex, oclBondType);
       }
     }
@@ -72,8 +130,8 @@ export function inchiStructureToOclMolecule(
     if (entry.type !== INCHI_STEREO_TYPE_TETRAHEDRAL) continue;
     const centralOcl = inchiToOcl[entry.centralAtom];
     if (centralOcl === undefined || centralOcl === -1) continue;
-    const oclParity = translateTetrahedralParity(entry, inchiToOcl);
-    if (oclParity === Molecule.cAtomParityNone) continue;
+    const oclParity = translateTetrahedralParity(entry, inchiToOcl, OCL);
+    if (oclParity === OCL.Molecule.cAtomParityNone) continue;
     molecule.setAtomParity(centralOcl, oclParity, false);
   }
 
@@ -120,15 +178,17 @@ function isPlainHydrogen(atom: StructureAtom): boolean {
  * @param entry - The InChI 0D stereo descriptor.
  * @param inchiToOcl - Map from InChI atom index to OCL atom index,
  *   `-1` for atoms (plain Hs) deliberately omitted from the OCL graph.
+ * @param OCL - The `openchemlib` module.
  * @returns The matching `Molecule.cAtomParity*` constant.
  */
 function translateTetrahedralParity(
   entry: StructureStereo,
   inchiToOcl: number[],
+  OCL: OCL,
 ): number {
-  if (entry.parity === 0) return Molecule.cAtomParityNone;
+  if (entry.parity === 0) return OCL.Molecule.cAtomParityNone;
   if (entry.parity === 3 || entry.parity === 4) {
-    return Molecule.cAtomParityUnknown;
+    return OCL.Molecule.cAtomParityUnknown;
   }
   if (entry.parity !== 1 && entry.parity !== 2) {
     // Combined connected/disconnected parity (ParityOfConnected |
@@ -138,9 +198,10 @@ function translateTetrahedralParity(
       return translateTetrahedralParity(
         { ...entry, parity: connected },
         inchiToOcl,
+        OCL,
       );
     }
-    return Molecule.cAtomParityUnknown;
+    return OCL.Molecule.cAtomParityUnknown;
   }
 
   const phantomBase = inchiToOcl.length;
@@ -162,7 +223,9 @@ function translateTetrahedralParity(
   const inchiSign = entry.parity === 2 ? 1 : -1;
   const canonicalSign = inchiSign * permSign;
 
-  return canonicalSign === 1 ? Molecule.cAtomParity2 : Molecule.cAtomParity1;
+  return canonicalSign === 1
+    ? OCL.Molecule.cAtomParity2
+    : OCL.Molecule.cAtomParity1;
 }
 
 function permutationSign(from: number[], to: number[]): number {
@@ -183,17 +246,17 @@ function permutationSign(from: number[], to: number[]): number {
   return swaps % 2 === 0 ? 1 : -1;
 }
 
-function inchiBondTypeToOcl(inchiBondType: number): number {
+function inchiBondTypeToOcl(inchiBondType: number, OCL: OCL): number {
   switch (inchiBondType) {
     case INCHI_BOND_TYPE_SINGLE:
-      return Molecule.cBondTypeSingle;
+      return OCL.Molecule.cBondTypeSingle;
     case INCHI_BOND_TYPE_DOUBLE:
-      return Molecule.cBondTypeDouble;
+      return OCL.Molecule.cBondTypeDouble;
     case INCHI_BOND_TYPE_TRIPLE:
-      return Molecule.cBondTypeTriple;
+      return OCL.Molecule.cBondTypeTriple;
     case INCHI_BOND_TYPE_AROMATIC:
-      return Molecule.cBondTypeDelocalized;
+      return OCL.Molecule.cBondTypeDelocalized;
     default:
-      return Molecule.cBondTypeSingle;
+      return OCL.Molecule.cBondTypeSingle;
   }
 }

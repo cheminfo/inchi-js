@@ -21,7 +21,8 @@ const INCHI_CITATIONS: Citation[] = [
     doi: '10.1186/s13321-015-0068-4',
   },
   {
-    authors: 'Heller, S. R., McNaught, A., Stein, S., Tchekhovskoi, D., Pletnev, I.',
+    authors:
+      'Heller, S. R., McNaught, A., Stein, S., Tchekhovskoi, D., Pletnev, I.',
     year: '2013',
     title: 'InChI — the worldwide chemical structure identifier standard',
     venue: 'Journal of Cheminformatics 5, 7',
@@ -29,10 +30,10 @@ const INCHI_CITATIONS: Citation[] = [
     doi: '10.1186/1758-2946-5-7',
   },
   {
-    authors: 'Goodman, J. M., Pletnev, I., Thiessen, P., Bolton, E., Heller, S. R.',
+    authors:
+      'Goodman, J. M., Pletnev, I., Thiessen, P., Bolton, E., Heller, S. R.',
     year: '2021',
-    title:
-      'InChI version 1.06: now more than 99.99% reliable',
+    title: 'InChI version 1.06: now more than 99.99% reliable',
     venue: 'Journal of Cheminformatics 13, 40',
     url: 'https://doi.org/10.1186/s13321-021-00517-z',
     doi: '10.1186/s13321-021-00517-z',
@@ -73,12 +74,12 @@ export function AboutPanel() {
           >
             <code>inchi-js</code>
           </a>
-          , a TypeScript wrapper around the official IUPAC InChI C library
-          (v{INCHI_C_VERSION}) compiled to WebAssembly and embedded as a single
-          self-contained ESM bundle — no extra fetch, no external <code>.wasm</code>{' '}
-          file. The site lets you convert between Molfile, InChI, and InChIKey
-          live in the browser, and stress-tests the embedded WASM build against
-          the upstream IUPAC regression corpora.
+          , a TypeScript wrapper around the official IUPAC InChI C library (v
+          {INCHI_C_VERSION}) compiled to WebAssembly and embedded as a single
+          self-contained ESM bundle — no extra fetch, no external{' '}
+          <code>.wasm</code> file. The site lets you convert between Molfile,
+          InChI, and InChIKey live in the browser, and stress-tests the embedded
+          WASM build against the upstream IUPAC regression corpora.
         </p>
       </Callout>
 
@@ -120,12 +121,69 @@ export function AboutPanel() {
           </li>
           <li>
             <strong>IUPAC InChI test corpora</strong> — the SDFs in the
-            "Tests" tab come verbatim from the{' '}
+            &ldquo;Tests&rdquo; tab come verbatim from the{' '}
             <code>INCHI-1-TEST</code> subdirectory of the IUPAC InChI
             repository. They are bundled into the production build for offline
             replay.
           </li>
         </ul>
+      </section>
+
+      <section>
+        <h3 style={{ marginBottom: 8 }}>
+          Known limitation: stereochemistry round-trip
+        </h3>
+        <Callout intent="warning" icon="warning-sign">
+          <p style={{ marginTop: 0 }}>
+            The IUPAC InChI engine itself preserves stereochemistry correctly,
+            but the playground&apos;s <code>InChI → molfile → InChI</code>{' '}
+            round-trip currently fails for some chiral atoms — typically
+            stereocentres on saturated rings (e.g. (R)-3-methylcyclohexanone)
+            and a few exocyclic-alkene cases. The reconstructed molfile
+            round-trips to the enantiomer of the source InChI.
+          </p>
+          <p style={{ marginBottom: 0 }}>
+            Root cause: OpenChemLib&apos;s{' '}
+            <code>setStereoBondsFromParity()</code> emits a wedge of the wrong
+            handedness for these local geometries. Simple acyclic centres (e.g.
+            L-alanine, (R)-2-butanol) round-trip correctly. See the minimal
+            reproducer and the round-trip test suite:
+          </p>
+          <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
+            <li>
+              <a
+                href="https://github.com/cheminfo/inchi/blob/main/packages/inchi.cheminfo.org/src/__tests__/ocl-stereo-bug.test.ts"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <code>ocl-stereo-bug.test.ts</code>
+              </a>{' '}
+              — minimal OCL bug reproducer.
+            </li>
+            <li>
+              <a
+                href="https://github.com/cheminfo/inchi/blob/main/packages/inchi.cheminfo.org/src/__tests__/stereoRoundTrip.test.ts"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <code>stereoRoundTrip.test.ts</code>
+              </a>{' '}
+              — passing cases plus the <code>test.skip.each</code> block
+              tracking InChIs blocked on the OCL fix.
+            </li>
+            <li>
+              <a
+                href="https://github.com/cheminfo/inchi/tree/main/packages/inchi.cheminfo.org/bug-report"
+                target="_blank"
+                rel="noreferrer"
+              >
+                <code>bug-report/</code>
+              </a>{' '}
+              — standalone reproducer and the four molfiles that trigger the
+              parity ↔ wedge mismatch.
+            </li>
+          </ul>
+        </Callout>
       </section>
 
       <section>
@@ -142,9 +200,9 @@ export function AboutPanel() {
       <section>
         <h3 style={{ marginBottom: 8 }}>How to cite OpenChemLib</h3>
         <p className="muted" style={{ marginTop: 0 }}>
-          The playground uses OpenChemLib for every Molfile parse, 2D
-          depiction, and idCode comparison. If you rely on that part of the
-          stack, please cite:
+          The playground uses OpenChemLib for every Molfile parse, 2D depiction,
+          and idCode comparison. If you rely on that part of the stack, please
+          cite:
         </p>
         <CitationList citations={[OCL_CITATION]} />
       </section>
@@ -183,7 +241,11 @@ export function AboutPanel() {
             — the InChI Trust, custodian of the standard.
           </li>
           <li>
-            <a href="https://www.cheminfo.org/" target="_blank" rel="noreferrer">
+            <a
+              href="https://www.cheminfo.org/"
+              target="_blank"
+              rel="noreferrer"
+            >
               cheminfo.org
             </a>{' '}
             — the cheminfo project at EPFL.
@@ -204,8 +266,8 @@ export function AboutPanel() {
           >
             IUPAC/InChI Trust Licence
           </a>
-          ; redistributing the bundled WASM means agreeing to that licence
-          as well.
+          ; redistributing the bundled WASM means agreeing to that licence as
+          well.
         </p>
       </section>
     </div>
@@ -217,8 +279,8 @@ function CitationList({ citations }: { citations: Citation[] }) {
     <ol style={{ marginTop: 4, paddingLeft: 20, lineHeight: 1.55 }}>
       {citations.map((citation) => (
         <li key={citation.url} style={{ marginBottom: 8 }}>
-          {citation.authors} ({citation.year}).{' '}
-          <em>{citation.title}.</em> {citation.venue}.{' '}
+          {citation.authors} ({citation.year}). <em>{citation.title}.</em>{' '}
+          {citation.venue}.{' '}
           <a href={citation.url} target="_blank" rel="noreferrer">
             {citation.doi ? `doi:${citation.doi}` : citation.url}
           </a>

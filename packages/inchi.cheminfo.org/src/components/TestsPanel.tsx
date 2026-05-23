@@ -18,9 +18,8 @@ function readInitialTest(): TestId {
  *
  *   • Molfile → InChI — must pass on every record (regression check
  *     on the embedded WASM build).
- *   • Roundtrip (Molfile → InChI → Molfile) — exploratory comparison
- *     against the OpenChemLib canonical idCode; mismatches are
- *     expected and categorised.
+ *   • Roundtrip (Molfile → InChI → Molfile → InChI) — the two InChI
+ *     strings must be byte-identical for the round-trip to count as OK.
  *
  * The active sub-tab is reflected in the URL hash so links are
  * deep-shareable.

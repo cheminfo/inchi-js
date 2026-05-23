@@ -10,11 +10,11 @@ import { TestsPanel } from './components/TestsPanel.tsx';
 
 type TabId = 'convert' | 'tests' | 'download' | 'about';
 
-const VALID_TABS: TabId[] = ['convert', 'tests', 'download', 'about'];
+const VALID_TABS = new Set<TabId>(['convert', 'tests', 'download', 'about']);
 
 function readInitialTab(): TabId {
   const raw = globalThis.location.hash.replace(/^#\/?/, '').split('/')[0];
-  if (VALID_TABS.includes(raw as TabId)) return raw as TabId;
+  if (VALID_TABS.has(raw as TabId)) return raw as TabId;
   return 'convert';
 }
 
@@ -23,8 +23,8 @@ function readInitialTab(): TabId {
  *
  *   • Convert — structure ↔ InChI live conversion.
  *   • Tests — Molfile → InChI (must pass) and full
- *     Molfile → InChI → Molfile roundtrip (exploratory) against the
- *     vendored IUPAC test SDFs.
+ *     Molfile → InChI → Molfile → InChI roundtrip (InChI strings must
+ *     match) against the vendored IUPAC test SDFs.
  *   • Download — grab the prebuilt single-file ESM bundle and see
  *     how to embed it in plain HTML, in a bundler, or via npm.
  *   • About — project background, attribution, and academic
@@ -41,10 +41,8 @@ export function App() {
   }, []);
 
   const handleTabChange = useCallback((next: string | number) => {
-    const candidate = String(next);
-    const nextTab = VALID_TABS.includes(candidate as TabId)
-      ? (candidate as TabId)
-      : 'convert';
+    const candidate = String(next) as TabId;
+    const nextTab = VALID_TABS.has(candidate) ? candidate : 'convert';
     setTabId(nextTab);
     globalThis.history.replaceState(null, '', `#/${nextTab}`);
   }, []);

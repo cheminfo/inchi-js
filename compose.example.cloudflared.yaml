@@ -1,3 +1,13 @@
+# Cloudflare Tunnel deployment — no port published on the host.
+#
+# Cloudflare dashboard (https://dash.cloudflare.com):
+#   Networking → Tunnels → Create a tunnel → Cloudflared connector →
+#   copy the token into .env as TUNNEL_TOKEN=... → open the tunnel →
+#   Published applications tab → add application with
+#   Service = HTTP, URL = inchi-cheminfo-org:80, hostname = inchi.lactame.com.
+#
+# Copy this file to compose.yaml and run: docker compose up -d
+
 services:
   inchi-cheminfo-org:
     image: ghcr.io/cheminfo/inchi:latest

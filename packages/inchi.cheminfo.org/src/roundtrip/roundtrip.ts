@@ -1,152 +1,98 @@
 import { inchiFromMolfile, molfileFromInchi } from 'inchi-js';
-import { CanonizerUtil, Molecule } from 'openchemlib';
+import type { IteratorMolecule } from 'sdf-parser';
 
-import {
-  extractMolfile,
-  getMolfileId,
-  iterateSdfRecords,
-} from './sdfParsing.ts';
+import { getMolfileId } from './sdfParsing.ts';
 
 /**
- * Outcome of a single Molfile → InChI → Molfile round-trip:
+ * Outcome of a single Molfile → InChI → Molfile → InChI round-trip:
  *
- * - `ok`: the post-roundtrip molecule matches the original under the
- *   tautomer-aware OCL canonical form. Two molecules that differ only
- *   by which tautomer was selected are considered equivalent — the
- *   InChI normalisation is allowed to relocate labile hydrogens.
- * - `mismatch`: the InChI/Molfile pipeline ran without error but the
- *   tautomer-aware idCode still differs (stereo loss, charge change,
- *   formula change, …).
- * - `inchi-error`: `inchiFromMolfile` returned an empty InChI.
- * - `molfile-error`: `molfileFromInchi` returned an empty Molfile.
- * - `parse-error`: OpenChemLib could not parse one of the Molfiles
- *   into a `Molecule`.
+ * - `ok`: the second InChI is byte-identical to the first one. InChI is
+ *   already the canonical form, so string equality is the definitive
+ *   criterion — no OCL parse, no tautomer comparison.
+ * - `mismatch`: the round-trip ran without error but the second InChI
+ *   differs from the first one.
+ * - `inchi-error`: `inchiFromMolfile` on the original returned an empty
+ *   InChI.
+ * - `molfile-error`: `molfileFromInchi` returned an empty Molfile so we
+ *   could not even try a second pass.
  */
 export type RoundtripStatus =
   | 'ok'
   | 'mismatch'
   | 'inchi-error'
-  | 'molfile-error'
-  | 'parse-error';
+  | 'molfile-error';
 
 export interface RoundtripResult {
   molfileId: string;
   status: RoundtripStatus;
-  /** Original Molfile idCode (canonical OCL form, full information). */
-  originalIdCode: string;
-  /** idCode of the Molfile reconstructed from the InChI (full information). */
-  roundtripIdCode: string;
-  /** Tautomer-aware canonical idCode of the original Molfile. */
-  originalTautomerIdCode: string;
-  /** Tautomer-aware canonical idCode of the reconstructed Molfile. */
-  roundtripTautomerIdCode: string;
-  /** InChI computed from the original Molfile. */
+  /** InChI computed from the original Molfile (first pass). */
   inchi: string;
-  /** Diagnostic message from the C library or OCL, if any. */
+  /** InChI computed from the reconstructed Molfile (second pass). */
+  roundtripInchi: string;
+  /** Diagnostic message from the C library, if any. */
   message: string;
 }
 
 /**
  * Perform a single round-trip: original Molfile → InChI → reconstructed
- * Molfile → OCL canonical idCode, and compare to the OCL idCode of the
- * original Molfile.
+ * Molfile → InChI, and compare the two InChI strings byte-for-byte.
+ *
+ * The original molfile is passed straight to the InChI engine — never
+ * pre-processed by OpenChemLib — so the result is exactly what the
+ * upstream IUPAC `inchi.exe` would produce on the same input. Anything
+ * else would conflate "InChI behaviour" with "OCL behaviour".
  * @param molfile - The original V2000/V3000 Molfile text.
  * @param molfileId - The structure's identifier (preserved on the
  *   returned record so callers can correlate with the SDF).
  * @param inchiOptions - Optional raw InChI option string (e.g. `-RecMet`).
+ *   Applied to **both** passes so the comparison is apples-to-apples.
  * @returns The roundtrip result, never throws.
  */
 export async function roundtripOne(
   molfile: string,
   molfileId: string,
-  inchiOptions?: string,
+  inchiOptions = '',
 ): Promise<RoundtripResult> {
-  let originalMolecule: Molecule;
-  let originalIdCode = '';
-  let originalTautomerIdCode = '';
-  try {
-    originalMolecule = Molecule.fromMolfile(molfile);
-    originalIdCode = originalMolecule.getIDCode();
-    originalTautomerIdCode = CanonizerUtil.getIDCode(
-      originalMolecule,
-      CanonizerUtil.TAUTOMER,
-    );
-  } catch (error) {
-    return {
-      molfileId,
-      status: 'parse-error',
-      originalIdCode,
-      roundtripIdCode: '',
-      originalTautomerIdCode,
-      roundtripTautomerIdCode: '',
-      inchi: '',
-      message: `OCL parse failed on original: ${describe(error)}`,
-    };
-  }
-
-  const inchiResult = await inchiFromMolfile(molfile, {
-    options: inchiOptions ?? '',
-  });
-  if (!inchiResult.inchi) {
+  const firstInchi = await inchiFromMolfile(molfile, { options: inchiOptions });
+  if (!firstInchi.inchi) {
     return {
       molfileId,
       status: 'inchi-error',
-      originalIdCode,
-      roundtripIdCode: '',
-      originalTautomerIdCode,
-      roundtripTautomerIdCode: '',
       inchi: '',
-      message: inchiResult.message || inchiResult.log || 'no InChI produced',
+      roundtripInchi: '',
+      message: firstInchi.message || firstInchi.log || 'no InChI produced',
     };
   }
 
-  const molfileResult = await molfileFromInchi(inchiResult.inchi);
-  if (!molfileResult.molfile) {
+  const reconstructed = await molfileFromInchi(firstInchi.inchi);
+  if (!reconstructed.molfile) {
     return {
       molfileId,
       status: 'molfile-error',
-      originalIdCode,
-      roundtripIdCode: '',
-      originalTautomerIdCode,
-      roundtripTautomerIdCode: '',
-      inchi: inchiResult.inchi,
+      inchi: firstInchi.inchi,
+      roundtripInchi: '',
       message:
-        molfileResult.message || molfileResult.log || 'no Molfile produced',
+        reconstructed.message || reconstructed.log || 'no Molfile produced',
     };
   }
 
-  let roundtripIdCode = '';
-  let roundtripTautomerIdCode = '';
-  try {
-    const roundtripMolecule = Molecule.fromMolfile(molfileResult.molfile);
-    roundtripIdCode = roundtripMolecule.getIDCode();
-    roundtripTautomerIdCode = CanonizerUtil.getIDCode(
-      roundtripMolecule,
-      CanonizerUtil.TAUTOMER,
-    );
-  } catch (error) {
-    return {
-      molfileId,
-      status: 'parse-error',
-      originalIdCode,
-      roundtripIdCode: '',
-      originalTautomerIdCode,
-      roundtripTautomerIdCode: '',
-      inchi: inchiResult.inchi,
-      message: `OCL parse failed on reconstructed Molfile: ${describe(error)}`,
-    };
-  }
-
-  const match = originalTautomerIdCode === roundtripTautomerIdCode;
+  const secondInchi = await inchiFromMolfile(reconstructed.molfile, {
+    options: inchiOptions,
+  });
+  const match =
+    Boolean(secondInchi.inchi) && secondInchi.inchi === firstInchi.inchi;
   return {
     molfileId,
     status: match ? 'ok' : 'mismatch',
-    originalIdCode,
-    roundtripIdCode,
-    originalTautomerIdCode,
-    roundtripTautomerIdCode,
-    inchi: inchiResult.inchi,
-    message: match ? '' : 'tautomer-aware idCode changed after roundtrip',
+    inchi: firstInchi.inchi,
+    roundtripInchi: secondInchi.inchi,
+    message: match
+      ? ''
+      : secondInchi.inchi
+        ? 'second InChI differs from the first'
+        : secondInchi.message ||
+          secondInchi.log ||
+          'reconstructed Molfile did not produce an InChI',
   };
 }
 
@@ -157,16 +103,22 @@ export interface RoundtripProgress {
   mismatch: number;
   inchiError: number;
   molfileError: number;
-  parseError: number;
 }
 
 /**
- * Run roundtrips on every record of an SDF blob, calling `onProgress`
- * periodically so the UI can show streaming updates. The work is
+ * Run roundtrips on every molecule of a streamed SDF, calling
+ * `onProgress` periodically so the UI can show updates. The work is
  * chunked and yielded to the event loop so the browser stays
  * responsive on large fixtures.
- * @param sdfText - Full SDF source.
+ *
+ * Pass an `AsyncIterable<IteratorMolecule>` (typically from
+ * {@link streamSdfMolecules}) so the SDF is parsed lazily and the full
+ * uncompressed text never has to live in memory.
+ * @param molecules - Async iterable of parsed SDF molecules.
  * @param options - Run configuration.
+ * @param options.approxTotal - Approximate record count used to drive
+ *   the progress bar before the stream finishes. Defaults to `0` which
+ *   leaves the bar at "indeterminate" until completion.
  * @param options.inchiOptions - Raw InChI option string applied to every call.
  * @param options.signal - Aborts the run early when triggered.
  * @param options.onProgress - Called every `chunkSize` records.
@@ -174,8 +126,9 @@ export interface RoundtripProgress {
  * @returns The full results array (in SDF order).
  */
 export async function roundtripAll(
-  sdfText: string,
+  molecules: AsyncIterable<IteratorMolecule>,
   options: {
+    approxTotal?: number;
     inchiOptions?: string;
     signal?: AbortSignal;
     onProgress?: (progress: RoundtripProgress) => void;
@@ -183,43 +136,40 @@ export async function roundtripAll(
   } = {},
 ): Promise<RoundtripResult[]> {
   const chunkSize = options.chunkSize ?? 25;
-  const records: string[] = [];
-  for (const record of iterateSdfRecords(sdfText)) {
-    records.push(record);
-  }
-
   const results: RoundtripResult[] = [];
   const stats: RoundtripProgress = {
     done: 0,
-    total: records.length,
+    total: options.approxTotal ?? 0,
     ok: 0,
     mismatch: 0,
     inchiError: 0,
     molfileError: 0,
-    parseError: 0,
   };
 
-  for (let i = 0; i < records.length; i++) {
+  let index = 0;
+  for await (const molecule of molecules) {
     if (options.signal?.aborted) throw new Error('aborted');
-    const record = records[i];
-    if (record === undefined) continue;
-    // eslint-disable-next-line no-await-in-loop -- WASM calls must be sequential
     const result = await roundtripOne(
-      extractMolfile(record),
-      getMolfileId(record) || `record-${i + 1}`,
+      molecule.molfile,
+      getMolfileId(molecule) || `record-${index + 1}`,
       options.inchiOptions,
     );
     results.push(result);
     bumpStats(stats, result.status);
-    if ((i + 1) % chunkSize === 0 || i === records.length - 1) {
-      options.onProgress?.(stats);
-      // Yield to the event loop so the browser stays responsive.
-      // eslint-disable-next-line no-await-in-loop -- intentional micro-yield
+    index += 1;
+    if (index % chunkSize === 0) {
+      // Inflate `total` if we ended up parsing more records than the
+      // dataset's `approxCount` advertised, so the bar never overshoots.
+      if (stats.done > stats.total) stats.total = stats.done;
+      options.onProgress?.({ ...stats });
       await new Promise<void>((resolve) => {
         setTimeout(resolve, 0);
       });
     }
   }
+  // Final emission with the now-exact total.
+  stats.total = stats.done;
+  options.onProgress?.({ ...stats });
   return results;
 }
 
@@ -238,15 +188,9 @@ function bumpStats(stats: RoundtripProgress, status: RoundtripStatus) {
     case 'molfile-error':
       stats.molfileError += 1;
       break;
-    case 'parse-error':
-      stats.parseError += 1;
-      break;
     default:
       break;
   }
 }
 
-function describe(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  return String(error);
-}
+export { streamSdfMolecules } from './sdfParsing.ts';

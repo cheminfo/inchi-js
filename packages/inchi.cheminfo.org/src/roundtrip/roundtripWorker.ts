@@ -1,8 +1,7 @@
 /// <reference lib="webworker" />
 
 import type { RoundtripProgress, RoundtripResult } from './roundtrip.ts';
-import { roundtripAll } from './roundtrip.ts';
-import { fetchGzippedSdf } from './sdfParsing.ts';
+import { roundtripAll, streamSdfMolecules } from './roundtrip.ts';
 
 /**
  * Message types exchanged between the main thread and the roundtrip
@@ -13,6 +12,8 @@ export interface WorkerInbound {
   type: 'run';
   url: string;
   inchiOptions: string;
+  /** Estimated record count, used to drive the progress bar. */
+  approxTotal: number;
 }
 
 export type WorkerOutbound =
@@ -26,15 +27,15 @@ const scope = self as unknown as DedicatedWorkerGlobalScope;
 scope.addEventListener('message', (event: MessageEvent<WorkerInbound>) => {
   const data = event.data;
   if (data.type === 'run') {
-    void runJob(data.url, data.inchiOptions);
+    void runJob(data);
   }
 });
 
-async function runJob(url: string, inchiOptions: string): Promise<void> {
+async function runJob(payload: WorkerInbound): Promise<void> {
   try {
-    const sdfText = await fetchGzippedSdf(url);
-    const results = await roundtripAll(sdfText, {
-      inchiOptions,
+    const results = await roundtripAll(streamSdfMolecules(payload.url), {
+      approxTotal: payload.approxTotal,
+      inchiOptions: payload.inchiOptions,
       chunkSize: 25,
       onProgress: (stats) => {
         post({ type: 'progress', stats });

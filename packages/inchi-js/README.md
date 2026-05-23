@@ -143,14 +143,15 @@ The library is intentionally fetch-free. At build time
    [`IUPAC-InChI/InChI-Web-Demo`](https://github.com/IUPAC-InChI/InChI-Web-Demo))
    via Emscripten + CMake.
 2. The resulting `inchi.wasm` is gzip-compressed (`level: 9`) and
-   base64-encoded into [`src/wasm-data.ts`](src/wasm-data.ts).
+   base64-encoded into [`src/wasm/data.ts`](src/wasm/data.ts).
 3. The Emscripten JS glue is rewritten as an ES module in
-   [`src/wasm-glue.ts`](src/wasm-glue.ts) and the factory function is
+   [`src/wasm/glue.ts`](src/wasm/glue.ts) and the factory function is
    given the decoded bytes via the `wasmBinary` option — bypassing
-   `fetch` entirely.
+   `fetch` entirely. The runtime bridge that decodes the bytes and
+   instantiates the module lives in [`src/wasm/loadWasm.ts`](src/wasm/loadWasm.ts).
 
-The generated `wasm-data.ts` and `wasm-glue.ts` files are committed,
-so consumers never need a C toolchain.
+The generated `data.ts` and `glue.ts` files are committed, so
+consumers never need a C toolchain.
 
 ## Test coverage vs. the upstream IUPAC suite
 
@@ -158,14 +159,14 @@ so consumers never need a C toolchain.
 WebAssembly build, in addition to the small canonical tests under
 [`src/__tests__/`](src/__tests__/):
 
-| Folder | Mirrors | Coverage |
-|---|---|---|
-| [`__tests__/regression/inchiSdf.test.ts`](src/__tests__/regression/inchiSdf.test.ts) | `INCHI-1-TEST/tests/test_library/data/ci/inchi.sdf.gz` | 2,190 structures — every InChI must equal the reference SQLite snapshot, plus InChIKey parity on the first 100. Honors the upstream `expected_failures` list (4 known regressions). |
-| [`__tests__/regression/mculeSdf.test.ts`](src/__tests__/regression/mculeSdf.test.ts) | `INCHI-1-TEST/tests/test_library/data/ci/mcule.sdf.gz` | 2,000 mcule.com structures vs. the reference SQLite snapshot. |
-| [`__tests__/executable/github52.test.ts`](src/__tests__/executable/github52.test.ts) | `test_executable/test_github_52.py` | V3000 empty bond block parsing. |
-| [`__tests__/executable/testIo.test.ts`](src/__tests__/executable/testIo.test.ts) | `test_executable/test_io.py` | V3000 I/O edge cases: SCSR rejection, >999-atom rejection, `-LargeMolecules` switch, 999-atom acceptance. |
-| [`__tests__/executable/organometallicsPubchem.test.ts`](src/__tests__/executable/organometallicsPubchem.test.ts) | `test_executable/test_organometallics_pubchem.py` | Every structure in the PubChem organometallics fixture must yield an InChI under `-RecMet`. |
-| [`__tests__/executable/aromaticIons.test.ts`](src/__tests__/executable/aromaticIons.test.ts) | `test_executable/test_aromatic_ions.py` | Three aromatic-bond cation/anion cases — `xfail` in upstream and here (`test.fails`). |
+| Folder                                                                                                           | Mirrors                                                | Coverage                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`__tests__/regression/inchiSdf.test.ts`](src/__tests__/regression/inchiSdf.test.ts)                             | `INCHI-1-TEST/tests/test_library/data/ci/inchi.sdf.gz` | 2,190 structures — every InChI must equal the reference SQLite snapshot, plus InChIKey parity on the first 100. Honors the upstream `expected_failures` list (4 known regressions). |
+| [`__tests__/regression/mculeSdf.test.ts`](src/__tests__/regression/mculeSdf.test.ts)                             | `INCHI-1-TEST/tests/test_library/data/ci/mcule.sdf.gz` | 2,000 mcule.com structures vs. the reference SQLite snapshot.                                                                                                                       |
+| [`__tests__/executable/github52.test.ts`](src/__tests__/executable/github52.test.ts)                             | `test_executable/test_github_52.py`                    | V3000 empty bond block parsing.                                                                                                                                                     |
+| [`__tests__/executable/testIo.test.ts`](src/__tests__/executable/testIo.test.ts)                                 | `test_executable/test_io.py`                           | V3000 I/O edge cases: SCSR rejection, >999-atom rejection, `-LargeMolecules` switch, 999-atom acceptance.                                                                           |
+| [`__tests__/executable/organometallicsPubchem.test.ts`](src/__tests__/executable/organometallicsPubchem.test.ts) | `test_executable/test_organometallics_pubchem.py`      | Every structure in the PubChem organometallics fixture must yield an InChI under `-RecMet`.                                                                                         |
+| [`__tests__/executable/aromaticIons.test.ts`](src/__tests__/executable/aromaticIons.test.ts)                     | `test_executable/test_aromatic_ions.py`                | Three aromatic-bond cation/anion cases — `xfail` in upstream and here (`test.fails`).                                                                                               |
 
 **Out of scope:** the upstream
 [`INCHI-1-TEST/tests/test_unit/`](https://github.com/IUPAC-InChI/InChI/tree/dev/INCHI-1-TEST/tests/test_unit)
@@ -178,6 +179,49 @@ parsing (`test_alex_clark_structures`, `test_organometallics_ccdc`,
 `xfail` upstream and are skipped here as well — they document broken
 behavior rather than asserted invariants.
 
+## Benchmark vs. the native `inchi-1` binary
+
+[`benchmark/bench-inchi.ts`](benchmark/bench-inchi.ts) runs the WASM
+build against the official IUPAC `inchi-1` executable on the same
+2,190-structure corpus used by the regression tests
+(`vendor/inchi/INCHI-1-TEST/tests/test_library/data/ci/inchi.sdf.gz`,
+avg ~3.7 KB / molfile). It reports three modes side by side:
+
+1. **WASM, per molfile** — the realistic JS use case: one
+   `inchiFromMolfile()` call per structure inside a single Node
+   process.
+2. **Native, batch** — the realistic CLI use case: one `inchi-1`
+   process that walks the whole SDF.
+3. **Native, per call** — for a 50-structure sample, spawn `inchi-1`
+   once per molfile. This isolates the per-structure C kernel cost
+   from process-startup overhead.
+
+Results on an Apple M1 with `inchi-1` 1.07.5 and Node 26:
+
+| Mode                                                      | ms / structure | structures / s |
+| --------------------------------------------------------- | -------------- | -------------- |
+| WASM `inchi-js`, per molfile                              | 0.69           | ~1,450         |
+| Native `inchi-1`, batch (1 process for the whole SDF)     | 0.43           | ~2,325         |
+| Native `inchi-1`, per molfile (separate process per call) | ~3.1           | ~320           |
+
+- WASM is **~1.6× slower** than the native binary running in batch mode.
+- Spawning `inchi-1` per molfile is **~7× slower** than batching — the
+  per-call mode exists to make that anti-pattern visible.
+- **2,188 / 2,190 InChIs match** the native binary byte-for-byte; the
+  two differences correspond to the known upstream regressions
+  documented in
+  [inchiSdf.test.ts](src/__tests__/regression/inchiSdf.test.ts).
+- WASM cold start (module instantiation + gzip decompression) is
+  ~60 ms and only paid once per process.
+
+Run it with:
+
+```bash
+npm run benchmark                                  # full 2,190-structure corpus
+node benchmark/bench-inchi.ts <sdf-path> [limit]   # custom corpus / limit
+INCHI_BIN=/path/to/inchi-1 npm run benchmark       # use a specific native binary
+```
+
 ## Rebuilding the WASM
 
 You only need this if you bump the InChI C version or change
@@ -188,7 +232,7 @@ You only need this if you bump the InChI C version or change
 
 ```bash
 git submodule update --init --recursive
-npm run build-wasm    # rebuilds src/wasm-data.ts + src/wasm-glue.ts
+npm run build-wasm    # rebuilds src/wasm/data.ts + src/wasm/glue.ts
 npm run tsc           # recompiles the lib/ output
 npm test              # runs the test suite to verify
 ```

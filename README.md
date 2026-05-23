@@ -37,7 +37,7 @@ alias, so edits to the engine show up live.
 ## Building the WASM module
 
 The library ships with a pre-built, base64-embedded WASM module at
-[`packages/inchi-js/src/wasm-data.ts`](packages/inchi-js/src/wasm-data.ts).
+[`packages/inchi-js/src/wasm/data.ts`](packages/inchi-js/src/wasm/data.ts).
 To rebuild it from the InChI C source you need
 [Emscripten](https://emscripten.org/) (`emcc`) and `cmake` ≥ 3.15:
 
@@ -51,7 +51,8 @@ This:
    `vendor/inchi/INCHI-1-SRC/INCHI_API/libinchi` plus the IUPAC
    `inchi_web.c` JSON wrapper with `emcc` into a `.wasm` + JS glue.
 2. Gzips and base64-encodes the resulting `.wasm` binary into
-   `packages/inchi-js/src/wasm-data.ts`.
+   `packages/inchi-js/src/wasm/data.ts` (next to the auto-generated JS
+   glue at `packages/inchi-js/src/wasm/glue.ts`).
 3. Generates a TypeScript module that decodes + decompresses the
    binary at load time and instantiates a WebAssembly instance.
 
@@ -68,6 +69,62 @@ never need a C toolchain.
 | `npm run build-wasm`  | Rebuild the WASM module from `vendor/inchi/` (requires emscripten + cmake).   |
 | `npm test`            | Per-workspace `vitest run --coverage` + type-check + eslint + prettier.      |
 | `npm run test-only`   | Tests only, skip lint/types.                                                  |
+
+## Deployment (`inchi.cheminfo.org`)
+
+The playground ships as a static Docker image built from
+[`Dockerfile`](Dockerfile) — Vite output served by
+[`static-web-server`](https://github.com/static-web-server/static-web-server)
+on port `80` inside the container. Three example compose files cover
+the common deployment modes; pick one, copy it to `compose.yaml`,
+adjust if needed, and start it. Built images are also published to
+`ghcr.io/cheminfo/inchi:latest`, so a deployment host only needs
+Docker — no Node.js, no submodule, no build step.
+
+### 1. Direct port mapping (default)
+
+Publishes the container on a host port (default `8080`). Useful for
+local testing or behind any reverse proxy you already operate.
+
+```bash
+cp .env.example .env             # adjust PORT if 8080 is taken
+cp compose.example.yaml compose.yaml
+docker compose pull              # or: docker compose up -d --build
+docker compose up -d
+```
+
+### 2. Cloudflare Tunnel
+
+Runs a `cloudflared` sidecar that connects to a tunnel you created in
+the Cloudflare dashboard — the container is reachable over HTTPS at
+the public hostname you assign (default `inchi.lactame.com`) without
+opening any inbound port.
+
+```bash
+cp .env.example .env             # fill in TUNNEL_TOKEN=...
+cp compose.example.cloudflared.yaml compose.yaml
+docker compose up -d
+```
+
+Cloudflare dashboard steps: **Networking → Tunnels → Create a tunnel
+→ Cloudflared connector**, copy the token into `.env`, then under
+**Published applications** add `Service = HTTP`, `URL =
+inchi-cheminfo-org:80`, hostname = `inchi.lactame.com`.
+
+### 3. Traefik reverse proxy
+
+For hosts that already run Traefik on a shared `traefik` Docker
+network with a `websecure` entrypoint and a `letsencrypt` cert
+resolver. No port is published on the host — Traefik routes traffic
+to the container over the shared network.
+
+```bash
+cp compose.example.traefik.yaml compose.yaml
+# adjust the Host(`...`) label in compose.yaml to your hostname
+docker compose up -d
+```
+
+The default hostname in the example is `inchi.cheminfo.org`.
 
 ## Library quick start
 

@@ -1,5 +1,5 @@
-import { callJsonReturning } from './loadWasm.ts';
 import type { InchikeyFromInchiResult } from './types.ts';
+import { callJsonReturning } from './wasm/loadWasm.ts';
 
 interface RawResult {
   /* eslint-disable @typescript-eslint/naming-convention -- shape comes from the C wrapper JSON */

@@ -1,8 +1,7 @@
 /// <reference lib="webworker" />
 
 import type { ForwardProgress, ForwardResult } from './forwardTest.ts';
-import { forwardAll } from './forwardTest.ts';
-import { fetchGzippedSdf } from './sdfParsing.ts';
+import { forwardAll, streamSdfMolecules } from './forwardTest.ts';
 
 /**
  * Message types exchanged between the main thread and the
@@ -13,6 +12,8 @@ export interface ForwardWorkerInbound {
   type: 'run';
   url: string;
   inchiOptions: string;
+  /** Estimated record count, used to drive the progress bar. */
+  approxTotal: number;
 }
 
 export type ForwardWorkerOutbound =
@@ -28,16 +29,16 @@ scope.addEventListener(
   (event: MessageEvent<ForwardWorkerInbound>) => {
     const data = event.data;
     if (data.type === 'run') {
-      void runJob(data.url, data.inchiOptions);
+      void runJob(data);
     }
   },
 );
 
-async function runJob(url: string, inchiOptions: string): Promise<void> {
+async function runJob(payload: ForwardWorkerInbound): Promise<void> {
   try {
-    const sdfText = await fetchGzippedSdf(url);
-    const results = await forwardAll(sdfText, {
-      inchiOptions,
+    const results = await forwardAll(streamSdfMolecules(payload.url), {
+      approxTotal: payload.approxTotal,
+      inchiOptions: payload.inchiOptions,
       chunkSize: 50,
       onProgress: (stats) => {
         post({ type: 'progress', stats });

@@ -22,6 +22,7 @@ const outDts = join(outDir, 'inchi-js.d.ts');
 rmSync(outDir, { recursive: true, force: true });
 mkdirSync(outDir, { recursive: true });
 
+/** @type {import('esbuild').BuildOptions} */
 const shared = {
   entryPoints: [entry],
   bundle: true,

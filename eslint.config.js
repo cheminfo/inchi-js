@@ -11,7 +11,8 @@ export default defineConfig(
     '**/node_modules',
     'vendor',
     'packages/inchi-js/build/out',
-    'packages/inchi-js/src/wasm-data.ts',
+    'packages/inchi-js/src/wasm/data.ts',
+    'packages/inchi-js/src/wasm/glue.ts',
   ]),
   ...cheminfoTs,
   {

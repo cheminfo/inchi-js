@@ -5,8 +5,8 @@ export default defineConfig([
   globalIgnores([
     'coverage',
     'lib',
-    'src/wasm-data.ts',
-    'src/wasm-glue.ts',
+    'src/wasm/data.ts',
+    'src/wasm/glue.ts',
     'build/out',
   ]),
   ...cheminfo,

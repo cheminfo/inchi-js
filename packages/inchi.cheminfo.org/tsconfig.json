@@ -5,6 +5,7 @@
     "outDir": "dist",
     "jsx": "react-jsx",
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "types": ["node"],
     "paths": {
       "inchi-js": ["../inchi-js/lib/index.d.ts"]
     }

@@ -3,10 +3,9 @@
   "compilerOptions": {
     "noUncheckedIndexedAccess": true,
     "outDir": "lib",
-    "rootDir": "src",
     "lib": ["ESNext", "DOM"],
     "types": ["node"]
   },
-  "include": ["src"],
+  "include": ["src", "benchmark"],
   "exclude": ["build/out", "lib", "coverage"]
 }

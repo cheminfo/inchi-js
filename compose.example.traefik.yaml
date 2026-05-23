@@ -1,3 +1,10 @@
+# Traefik reverse-proxy deployment — no port published on the host.
+# Requires a host running Traefik on an external Docker network
+# named `traefik`, with a `websecure` entrypoint and a `letsencrypt`
+# cert resolver. Adjust the Host(...) label below to your hostname.
+#
+# Copy this file to compose.yaml and run: docker compose up -d
+
 services:
   inchi-cheminfo-org:
     image: ghcr.io/cheminfo/inchi:latest

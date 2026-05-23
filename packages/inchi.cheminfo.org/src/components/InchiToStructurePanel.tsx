@@ -1,10 +1,13 @@
 import { Icon, InputGroup } from '@blueprintjs/core';
-import { inchikeyFromInchi, structureFromInchi } from 'inchi-js';
+import {
+  inchikeyFromInchi,
+  oclMoleculeFromStructure,
+  structureFromInchi,
+} from 'inchi-js';
 import type { Molecule } from 'openchemlib';
+import * as OCL from 'openchemlib';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { SvgRenderer } from 'react-ocl';
-
-import { inchiStructureToOclMolecule } from '../inchi/inchiToOclMolecule.ts';
 
 import { CopyButton } from './CopyButton.tsx';
 
@@ -75,7 +78,7 @@ export function InchiToStructurePanel() {
         });
         return;
       }
-      const molecule = inchiStructureToOclMolecule(structure);
+      const molecule = oclMoleculeFromStructure(structure, OCL);
       setResult({
         molecule,
         molfile: molecule.toMolfile(),

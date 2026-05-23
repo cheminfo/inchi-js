@@ -14,12 +14,14 @@ import {
 /*
  * Full regression of the upstream IUPAC `inchi.sdf` corpus
  * (`INCHI-1-TEST/tests/test_library/data/ci/inchi.sdf.gz` — 2,190
- * structures) against the reference InChI/InChIKey/AuxInfo strings
- * stored in the matching SQLite snapshot.
+ * structures) against:
  *
- * Mirrors `config_ci.py` in the upstream test suite: structures listed
- * in the `expected_failures` set are allowed to diverge — anything
- * else is a regression.
+ * 1. the reference InChI/InChIKey/AuxInfo strings stored in the matching
+ *    SQLite snapshot (mirrors `config_ci.py` upstream — structures
+ *    listed in `expected_failures` are allowed to diverge),
+ * 2. a committed snapshot of the InChI we currently produce for every
+ *    record, so any drift — even within the listed regressions — is
+ *    caught on the next CI run.
  */
 
 const REPO_ROOT = join(import.meta.dirname, '..', '..', '..', '..', '..');
@@ -31,6 +33,11 @@ const REF_PATH = join(
   REPO_ROOT,
   'vendor/inchi/INCHI-1-TEST/tests/test_library/data/ci/inchi.sdf.regression_reference.sqlite',
 );
+const SNAPSHOT_PATH = join(
+  import.meta.dirname,
+  '__snapshots__',
+  'inchi.sdf.tsv',
+);
 
 /** Structures the upstream suite flags as expected regressions. */
 const EXPECTED_REGRESSION_FAILURES = new Set([
@@ -41,7 +48,7 @@ const EXPECTED_REGRESSION_FAILURES = new Set([
 ]);
 
 test(
-  'inchi.sdf regression: every structure matches the upstream reference',
+  'inchi.sdf regression: every structure matches the upstream reference and our committed snapshot',
   { timeout: 120_000 },
   async () => {
     const reference = loadReferenceMap(REF_PATH);
@@ -50,6 +57,7 @@ test(
       expectedInchi: string;
       actualInchi: string;
     }> = [];
+    const snapshotRows: Array<[string, string]> = [];
     let total = 0;
     let matched = 0;
     let missingReference = 0;
@@ -65,6 +73,7 @@ test(
       const molfile = extractMolfile(record);
       // eslint-disable-next-line no-await-in-loop -- WASM call must be sequential
       const result = await inchiFromMolfile(molfile);
+      snapshotRows.push([molfileId, result.inchi]);
       if (result.inchi === ref.inchi) {
         matched += 1;
         continue;
@@ -86,8 +95,24 @@ test(
       count: unexpectedFailures.length,
       firstFive: unexpectedFailures.slice(0, 5),
     }).toStrictEqual({ count: 0, firstFive: [] });
+
+    await expect(serializeSnapshot(snapshotRows)).toMatchFileSnapshot(
+      SNAPSHOT_PATH,
+    );
   },
 );
+
+/**
+ * Serialise the [molfileId, inchi] pairs as a sorted TSV blob. Sorting
+ * by id keeps git diffs minimal — when a single record's InChI changes
+ * only that line moves, the surrounding 2,189 stay anchored.
+ * @param rows - Collected `[molfileId, inchi]` pairs.
+ * @returns The TSV blob to feed to `toMatchFileSnapshot`.
+ */
+function serializeSnapshot(rows: Array<[string, string]>): string {
+  const sorted = rows.toSorted(([a], [b]) => a.localeCompare(b));
+  return `${sorted.map(([id, inchi]) => `${id}\t${inchi}`).join('\n')}\n`;
+}
 
 test(
   'inchi.sdf regression: InChIKey matches the reference for the first 100 structures',

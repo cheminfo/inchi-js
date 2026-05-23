@@ -1,10 +1,7 @@
 import { inchiFromMolfile, inchikeyFromInchi } from 'inchi-js';
+import type { IteratorMolecule } from 'sdf-parser';
 
-import {
-  extractMolfile,
-  getMolfileId,
-  iterateSdfRecords,
-} from './sdfParsing.ts';
+import { getMolfileId } from './sdfParsing.ts';
 
 /**
  * Outcome of a single Molfile → InChI conversion. The
@@ -32,6 +29,10 @@ export interface ForwardResult {
 /**
  * Convert one Molfile to its InChI string. Never throws — every
  * failure is reported through the `status` field.
+ *
+ * The molfile is passed straight to the InChI engine — never
+ * pre-processed by OpenChemLib — so the result is exactly what the
+ * upstream IUPAC `inchi.exe` would produce on the same input.
  * @param molfile - The V2000/V3000 Molfile text.
  * @param molfileId - The structure's identifier (preserved on the
  *   returned record so callers can correlate with the SDF).
@@ -76,12 +77,17 @@ export interface ForwardProgress {
 }
 
 /**
- * Run a `Molfile → InChI` conversion on every record of an SDF blob,
- * calling `onProgress` periodically so the UI can show streaming
- * updates. The work is chunked and yielded to the event loop so the
- * browser stays responsive on large fixtures.
- * @param sdfText - Full SDF source.
+ * Run a `Molfile → InChI` conversion on every molecule of a streamed
+ * SDF, calling `onProgress` periodically so the UI can show updates.
+ * The work is chunked and yielded to the event loop so the browser
+ * stays responsive on large fixtures.
+ *
+ * Pass an `AsyncIterable<IteratorMolecule>` (typically from
+ * {@link streamSdfMolecules}) so the SDF is parsed lazily.
+ * @param molecules - Async iterable of parsed SDF molecules.
  * @param options - Run configuration.
+ * @param options.approxTotal - Approximate record count used to drive
+ *   the progress bar before the stream finishes. Defaults to `0`.
  * @param options.inchiOptions - Raw InChI option string applied to every call.
  * @param options.signal - Aborts the run early when triggered.
  * @param options.onProgress - Called every `chunkSize` records.
@@ -89,8 +95,9 @@ export interface ForwardProgress {
  * @returns The full results array (in SDF order).
  */
 export async function forwardAll(
-  sdfText: string,
+  molecules: AsyncIterable<IteratorMolecule>,
   options: {
+    approxTotal?: number;
     inchiOptions?: string;
     signal?: AbortSignal;
     onProgress?: (progress: ForwardProgress) => void;
@@ -98,41 +105,36 @@ export async function forwardAll(
   } = {},
 ): Promise<ForwardResult[]> {
   const chunkSize = options.chunkSize ?? 50;
-  const records: string[] = [];
-  for (const record of iterateSdfRecords(sdfText)) {
-    records.push(record);
-  }
-
   const results: ForwardResult[] = [];
   const stats: ForwardProgress = {
     done: 0,
-    total: records.length,
+    total: options.approxTotal ?? 0,
     ok: 0,
     inchiError: 0,
     warning: 0,
   };
 
-  for (let i = 0; i < records.length; i++) {
+  let index = 0;
+  for await (const molecule of molecules) {
     if (options.signal?.aborted) throw new Error('aborted');
-    const record = records[i];
-    if (record === undefined) continue;
-    // eslint-disable-next-line no-await-in-loop -- WASM calls must be sequential
     const result = await forwardOne(
-      extractMolfile(record),
-      getMolfileId(record) || `record-${i + 1}`,
+      molecule.molfile,
+      getMolfileId(molecule) || `record-${index + 1}`,
       options.inchiOptions,
     );
     results.push(result);
     bumpStats(stats, result);
-    if ((i + 1) % chunkSize === 0 || i === records.length - 1) {
-      options.onProgress?.(stats);
-      // Yield to the event loop so the browser stays responsive.
-      // eslint-disable-next-line no-await-in-loop -- intentional micro-yield
+    index += 1;
+    if (index % chunkSize === 0) {
+      if (stats.done > stats.total) stats.total = stats.done;
+      options.onProgress?.({ ...stats });
       await new Promise<void>((resolve) => {
         setTimeout(resolve, 0);
       });
     }
   }
+  stats.total = stats.done;
+  options.onProgress?.({ ...stats });
   return results;
 }
 
@@ -142,3 +144,5 @@ function bumpStats(stats: ForwardProgress, result: ForwardResult) {
   else stats.inchiError += 1;
   if (result.warning) stats.warning += 1;
 }
+
+export { streamSdfMolecules } from './sdfParsing.ts';

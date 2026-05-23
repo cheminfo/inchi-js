@@ -2,7 +2,7 @@
 #
 # Build the InChI WebAssembly module from the C source in vendor/inchi
 # and embed the resulting .wasm binary (gzipped + base64) into
-# src/wasm-data.ts.
+# src/wasm/data.ts, alongside the Emscripten JS glue at src/wasm/glue.ts.
 #
 # Requires:
 #   - emcc / emcmake (Emscripten >= 3)
@@ -61,11 +61,12 @@ if [ ! -f "$JS_GLUE_PATH" ]; then
 fi
 
 echo ">> Embedding artifacts into TypeScript modules"
+mkdir -p "$SRC_DIR/wasm"
 node "$SCRIPT_DIR/embed-wasm.js" \
   --wasm "$WASM_PATH" \
   --glue "$JS_GLUE_PATH" \
-  --out-data "$SRC_DIR/wasm-data.ts" \
-  --out-glue "$SRC_DIR/wasm-glue.ts"
+  --out-data "$SRC_DIR/wasm/data.ts" \
+  --out-glue "$SRC_DIR/wasm/glue.ts"
 
 VERSION_HEADER="$INCHI_SUBMODULE/INCHI-1-SRC/INCHI_BASE/src/bcf_s.h"
 INCHI_C_VERSION="$(grep -E '^[[:space:]]*#define[[:space:]]+CURRENT_VER[[:space:]]+"' "$VERSION_HEADER" | sed -E 's/.*"([^"]+)".*/\1/')"
@@ -85,6 +86,6 @@ export const INCHI_C_VERSION = '$INCHI_C_VERSION';
 EOF
 
 WASM_SIZE=$(wc -c < "$WASM_PATH" | tr -d ' ')
-EMBED_SIZE=$(wc -c < "$SRC_DIR/wasm-data.ts" | tr -d ' ')
+EMBED_SIZE=$(wc -c < "$SRC_DIR/wasm/data.ts" | tr -d ' ')
 echo ">> Built WASM: $WASM_SIZE bytes -> embedded module: $EMBED_SIZE bytes"
 echo ">> Done. Re-run 'npm run tsc' to refresh the lib/ build."

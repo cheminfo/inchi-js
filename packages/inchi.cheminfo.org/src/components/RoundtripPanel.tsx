@@ -7,9 +7,7 @@ import {
   ProgressBar,
   Tag,
 } from '@blueprintjs/core';
-import { CanonizerUtil, Molecule } from 'openchemlib';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { SvgRenderer } from 'react-ocl';
 
 import type { TestDataset } from '../roundtrip/datasets.ts';
 import { TEST_DATASETS } from '../roundtrip/datasets.ts';
@@ -23,50 +21,6 @@ import type {
   WorkerOutbound,
 } from '../roundtrip/roundtripWorker.ts';
 
-const STRUCTURE_WIDTH = 160;
-const STRUCTURE_HEIGHT = 110;
-
-/**
- * High-level diagnosis for a `mismatch` row. The roundtrip status is
- * already computed against the tautomer-aware OCL idCode, so a row only
- * lands here when the two molecules differ in something more than the
- * chosen tautomer. We then categorise by re-canonicalising both sides
- * with stricter equivalence relations — the first one that matches
- * pinpoints what the InChI pipeline lost.
- *
- * - `stereo`: connectivity, hydrogens and tautomer are preserved — only
- *   the parity (E/Z, R/S, axial chirality) of a stereo centre changed.
- * - `formula`: heavy-atom count, isotope set or hydrogen count differs.
- * - `other`: same molecular formula but still different even after
- *   stripping stereo and tautomerism — typically a charge relocation
- *   or a real connectivity change (bond add / delete / reorder).
- */
-type MismatchCategory = 'stereo' | 'formula' | 'other';
-
-const MISMATCH_CATEGORY_LABEL: Record<MismatchCategory, string> = {
-  stereo: 'stereo lost',
-  formula: 'formula changed',
-  other: 'connectivity / charge',
-};
-
-const MISMATCH_CATEGORY_INTENT: Record<
-  MismatchCategory,
-  'success' | 'warning' | 'danger' | 'primary'
-> = {
-  stereo: 'primary',
-  formula: 'danger',
-  other: 'danger',
-};
-
-const MISMATCH_CATEGORY_DESCRIPTION: Record<MismatchCategory, string> = {
-  stereo:
-    'Only a stereo descriptor (E/Z, R/S, axial chirality) is lost — connectivity, hydrogens and tautomer are preserved.',
-  formula:
-    'Molecular formula differs after the roundtrip — heavy atoms, isotopes or hydrogen count changed.',
-  other:
-    'Same molecular formula but still different even after stripping stereo and tautomerism — usually a charge relocation or a true connectivity change.',
-};
-
 type Filter = 'all' | 'failed' | 'ok';
 
 const STATUS_LABEL: Record<RoundtripStatus, string> = {
@@ -74,7 +28,6 @@ const STATUS_LABEL: Record<RoundtripStatus, string> = {
   mismatch: 'mismatch',
   'inchi-error': 'InChI error',
   'molfile-error': 'Molfile error',
-  'parse-error': 'parse error',
 };
 
 const STATUS_INTENT: Record<RoundtripStatus, 'success' | 'warning' | 'danger'> =
@@ -83,7 +36,6 @@ const STATUS_INTENT: Record<RoundtripStatus, 'success' | 'warning' | 'danger'> =
     mismatch: 'warning',
     'inchi-error': 'danger',
     'molfile-error': 'danger',
-    'parse-error': 'danger',
   };
 
 /**
@@ -99,9 +51,10 @@ function inchiOptionsFor(dataset: TestDataset): string {
 }
 
 /**
- * "Test corpus" tab: lets the user run the full Molfile → InChI →
- * Molfile round-trip across each IUPAC SDF fixture and filter the
- * results to inspect the structures that do not survive the trip.
+ * "Roundtrip" tab: runs the full `Molfile → InChI → Molfile → InChI`
+ * round-trip across each IUPAC SDF fixture and compares the two InChI
+ * strings byte-for-byte. If they match, the round-trip is correct — no
+ * OCL parse, no tautomer comparison.
  * @returns The roundtrip tab JSX.
  */
 export function RoundtripPanel() {
@@ -182,6 +135,7 @@ export function RoundtripPanel() {
       type: 'run',
       url: new URL(url, globalThis.location.href).toString(),
       inchiOptions: inchiOptionsFor(selectedDataset),
+      approxTotal: selectedDataset.approxCount,
     };
     worker.postMessage(payload);
   }, [baseUrl, running, selectedDataset]);
@@ -192,17 +146,12 @@ export function RoundtripPanel() {
     setRunning(false);
   }, []);
 
-  const categories = useMemo(() => computeCategories(results), [results]);
-
   const filtered = useMemo(
     () => filterResults(results, filter),
     [results, filter],
   );
 
-  const stats = useMemo(
-    () => computeStats(results, categories),
-    [results, categories],
-  );
+  const stats = useMemo(() => computeStats(results), [results]);
 
   return (
     <div className="panel" style={{ gap: 16 }}>
@@ -211,11 +160,8 @@ export function RoundtripPanel() {
       </h2>
       <div className="muted">
         Pick an IUPAC test fixture and run every structure through{' '}
-        <code>Molfile → InChI → Molfile</code>. Each reconstructed Molfile is
-        canonicalised by OpenChemLib and its <strong>tautomer-aware</strong>{' '}
-        <code>idCode</code> is compared against the original — a different
-        canonical tautomer counts as OK, only real structural changes (stereo
-        loss, formula change, charge relocation) show up below.
+        <code>Molfile → InChI → Molfile → InChI</code>. The round-trip is{' '}
+        <strong>OK</strong> when the two InChI strings are byte-identical.
       </div>
 
       <div
@@ -280,7 +226,7 @@ export function RoundtripPanel() {
         <>
           <StatsRow stats={stats} />
           <FilterRow filter={filter} setFilter={setFilter} stats={stats} />
-          <ResultsTable rows={filtered} categories={categories} />
+          <ResultsTable rows={filtered} />
         </>
       )}
     </div>
@@ -294,21 +240,9 @@ interface Stats {
   mismatch: number;
   inchiError: number;
   molfileError: number;
-  parseError: number;
-  categories: Record<MismatchCategory, number>;
 }
 
-type CategoryMap = Map<string, MismatchCategory>;
-
-function computeStats(
-  results: RoundtripResult[] | null,
-  categories: CategoryMap,
-): Stats {
-  const emptyCategories: Record<MismatchCategory, number> = {
-    stereo: 0,
-    formula: 0,
-    other: 0,
-  };
+function computeStats(results: RoundtripResult[] | null): Stats {
   if (!results) {
     return {
       total: 0,
@@ -317,34 +251,25 @@ function computeStats(
       mismatch: 0,
       inchiError: 0,
       molfileError: 0,
-      parseError: 0,
-      categories: emptyCategories,
     };
   }
   let ok = 0;
   let mismatch = 0;
   let inchiError = 0;
   let molfileError = 0;
-  let parseError = 0;
   for (const result of results) {
     switch (result.status) {
       case 'ok':
         ok += 1;
         break;
-      case 'mismatch': {
+      case 'mismatch':
         mismatch += 1;
-        const category = categories.get(result.molfileId);
-        if (category) emptyCategories[category] += 1;
         break;
-      }
       case 'inchi-error':
         inchiError += 1;
         break;
       case 'molfile-error':
         molfileError += 1;
-        break;
-      case 'parse-error':
-        parseError += 1;
         break;
       default:
         break;
@@ -353,77 +278,11 @@ function computeStats(
   return {
     total: results.length,
     ok,
-    failed: mismatch + inchiError + molfileError + parseError,
+    failed: mismatch + inchiError + molfileError,
     mismatch,
     inchiError,
     molfileError,
-    parseError,
-    categories: emptyCategories,
   };
-}
-
-function computeCategories(results: RoundtripResult[] | null): CategoryMap {
-  const map: CategoryMap = new Map();
-  if (!results) return map;
-  for (const result of results) {
-    if (result.status !== 'mismatch') continue;
-    map.set(result.molfileId, categorizeMismatch(result));
-  }
-  return map;
-}
-
-/**
- * Classify a `mismatch` row. The OK/mismatch decision is already made by
- * comparing tautomer-aware idCodes, so any row reaching this function
- * differs in something more than a tautomer choice. We compare
- * molecular formulas first, then strip stereo to detect stereo-only
- * losses; anything else falls into `other` (charge / connectivity).
- * @param row - A `mismatch` roundtrip result.
- * @returns The diagnostic category.
- */
-function categorizeMismatch(row: RoundtripResult): MismatchCategory {
-  let original: Molecule;
-  let roundtrip: Molecule;
-  try {
-    original = Molecule.fromIDCode(row.originalIdCode);
-    roundtrip = Molecule.fromIDCode(row.roundtripIdCode);
-  } catch {
-    return 'other';
-  }
-  if (safeFormula(original) !== safeFormula(roundtrip)) return 'formula';
-
-  const originalNoStereoTautomer = safeCanonize(
-    original,
-    CanonizerUtil.NOSTEREO_TAUTOMER,
-  );
-  const roundtripNoStereoTautomer = safeCanonize(
-    roundtrip,
-    CanonizerUtil.NOSTEREO_TAUTOMER,
-  );
-  if (
-    originalNoStereoTautomer &&
-    originalNoStereoTautomer === roundtripNoStereoTautomer
-  ) {
-    return 'stereo';
-  }
-
-  return 'other';
-}
-
-function safeFormula(molecule: Molecule): string {
-  try {
-    return molecule.getMolecularFormula().formula;
-  } catch {
-    return '';
-  }
-}
-
-function safeCanonize(molecule: Molecule, type: number): string {
-  try {
-    return CanonizerUtil.getIDCode(molecule, type);
-  } catch {
-    return '';
-  }
 }
 
 function filterResults(
@@ -466,7 +325,7 @@ function ProgressRow({
         </span>
         <span className="muted">
           ok {progress.ok} · mismatch {progress.mismatch} · errors{' '}
-          {progress.inchiError + progress.molfileError + progress.parseError}
+          {progress.inchiError + progress.molfileError}
         </span>
       </div>
       <ProgressBar
@@ -480,20 +339,18 @@ function ProgressRow({
 }
 
 function StatsRow({ stats }: { stats: Stats }) {
-  const categoryOrder: MismatchCategory[] = ['stereo', 'formula', 'other'];
-  const hasCategories = categoryOrder.some((c) => stats.categories[c] > 0);
   return (
     <Callout
       icon={stats.failed === 0 ? 'tick-circle' : 'warning-sign'}
       intent={stats.failed === 0 ? 'success' : 'warning'}
-      title={`${stats.ok.toLocaleString()} / ${stats.total.toLocaleString()} structures survive a Molfile → InChI → Molfile roundtrip`}
+      title={`${stats.ok.toLocaleString()} / ${stats.total.toLocaleString()} structures survive a Molfile → InChI → Molfile → InChI roundtrip`}
     >
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 4 }}>
         <Tag minimal intent="success">
           OK: {stats.ok}
         </Tag>
         <Tag minimal intent="warning">
-          idCode mismatch: {stats.mismatch}
+          InChI mismatch: {stats.mismatch}
         </Tag>
         <Tag minimal intent="danger">
           InChI error: {stats.inchiError}
@@ -501,36 +358,7 @@ function StatsRow({ stats }: { stats: Stats }) {
         <Tag minimal intent="danger">
           Molfile error: {stats.molfileError}
         </Tag>
-        <Tag minimal intent="danger">
-          Parse error: {stats.parseError}
-        </Tag>
       </div>
-      {hasCategories && (
-        <>
-          <div
-            className="muted"
-            style={{ fontSize: 12, marginTop: 8, marginBottom: 4 }}
-          >
-            Mismatch breakdown — what the roundtrip dropped or rewrote:
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {categoryOrder.map((category) => {
-              const count = stats.categories[category];
-              if (count === 0) return null;
-              return (
-                <Tag
-                  key={category}
-                  minimal
-                  intent={MISMATCH_CATEGORY_INTENT[category]}
-                  title={MISMATCH_CATEGORY_DESCRIPTION[category]}
-                >
-                  {MISMATCH_CATEGORY_LABEL[category]}: {count}
-                </Tag>
-              );
-            })}
-          </div>
-        </>
-      )}
     </Callout>
   );
 }
@@ -575,13 +403,7 @@ function FilterRow({
   );
 }
 
-function ResultsTable({
-  rows,
-  categories,
-}: {
-  rows: RoundtripResult[];
-  categories: CategoryMap;
-}) {
+function ResultsTable({ rows }: { rows: RoundtripResult[] }) {
   if (rows.length === 0) {
     return (
       <div className="muted" style={{ fontSize: 13, fontStyle: 'italic' }}>
@@ -597,58 +419,53 @@ function ResultsTable({
           <tr>
             <th>Status</th>
             <th>ID</th>
-            <th>InChI</th>
-            <th>Original</th>
-            <th>Roundtrip</th>
-            <th>Diagnosis</th>
+            <th>InChI (original)</th>
+            <th>InChI (roundtrip)</th>
+            <th>Message</th>
           </tr>
         </thead>
         <tbody>
-          {visible.map((row) => {
-            const category = categories.get(row.molfileId);
-            return (
-              <tr key={row.molfileId}>
-                <td>
-                  <Tag minimal intent={STATUS_INTENT[row.status]}>
-                    {STATUS_LABEL[row.status]}
-                  </Tag>
-                </td>
-                <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                  {row.molfileId}
-                </td>
-                <td
-                  className="mono"
-                  style={{
-                    maxWidth: 280,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                  }}
-                  title={row.inchi}
-                >
-                  {row.inchi || <span className="muted">—</span>}
-                </td>
-                <td>
-                  <StructureCell idCode={row.originalIdCode} />
-                </td>
-                <td>
-                  <StructureCell idCode={row.roundtripIdCode} />
-                </td>
-                <td style={{ fontSize: 12 }}>
-                  {category ? (
-                    <Tag
-                      minimal
-                      intent={MISMATCH_CATEGORY_INTENT[category]}
-                      title={MISMATCH_CATEGORY_DESCRIPTION[category]}
-                    >
-                      {MISMATCH_CATEGORY_LABEL[category]}
-                    </Tag>
-                  ) : (
-                    <span style={{ color: '#8e292c' }}>{row.message}</span>
-                  )}
-                </td>
-              </tr>
-            );
-          })}
+          {visible.map((row) => (
+            <tr key={row.molfileId}>
+              <td>
+                <Tag minimal intent={STATUS_INTENT[row.status]}>
+                  {STATUS_LABEL[row.status]}
+                </Tag>
+              </td>
+              <td className="mono" style={{ whiteSpace: 'nowrap' }}>
+                {row.molfileId}
+              </td>
+              <td
+                className="mono"
+                style={{
+                  maxWidth: 280,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+                title={row.inchi}
+              >
+                {row.inchi || <span className="muted">—</span>}
+              </td>
+              <td
+                className="mono"
+                style={{
+                  maxWidth: 280,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+                title={row.roundtripInchi}
+              >
+                {row.roundtripInchi || <span className="muted">—</span>}
+              </td>
+              <td style={{ fontSize: 12 }}>
+                {row.message ? (
+                  <span style={{ color: '#8e292c' }}>{row.message}</span>
+                ) : (
+                  <span className="muted">—</span>
+                )}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </HTMLTable>
       {rows.length > visible.length && (
@@ -662,48 +479,4 @@ function ResultsTable({
       )}
     </div>
   );
-}
-
-function StructureCell({ idCode }: { idCode: string }) {
-  const molecule = useMemo(() => moleculeFromIdCode(idCode), [idCode]);
-  if (!molecule) {
-    return <span className="muted">—</span>;
-  }
-  return (
-    <div
-      title={idCode}
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: 2,
-      }}
-    >
-      <SvgRenderer
-        molecule={molecule}
-        width={STRUCTURE_WIDTH}
-        height={STRUCTURE_HEIGHT}
-      />
-      <code
-        style={{
-          fontSize: 10,
-          maxWidth: STRUCTURE_WIDTH,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
-        }}
-      >
-        {idCode}
-      </code>
-    </div>
-  );
-}
-
-function moleculeFromIdCode(idCode: string): Molecule | null {
-  if (!idCode) return null;
-  try {
-    return Molecule.fromIDCode(idCode);
-  } catch {
-    return null;
-  }
 }
