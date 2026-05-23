@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - 'inchi-js-v*'
+  workflow_dispatch:
 
 jobs:
   publish:
@@ -18,6 +19,6 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
       - run: npm ci
       - run: npm test -w inchi-js
-      - run: npm publish -w inchi-js --provenance --access public
+      - run: npm publish -w inchi-js --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_BOT_TOKEN }}
