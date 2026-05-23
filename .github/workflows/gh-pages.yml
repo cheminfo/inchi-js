@@ -24,7 +24,7 @@ jobs:
           submodules: recursive
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
       - run: npm ci
       # The site's vite downloadPlugin emits packages/inchi-js/lib/* as
       # static assets, so the library must be bundled before the site
