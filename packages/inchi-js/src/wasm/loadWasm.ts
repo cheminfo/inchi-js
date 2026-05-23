@@ -1,5 +1,7 @@
-import { wasmBase64 } from './wasm-data.ts';
-import inchiModule from './wasm-glue.ts';
+import { decode } from 'uint8-base64';
+
+import { wasmBase64 } from './data.ts';
+import inchiModule from './glue.ts';
 
 /* eslint-disable @typescript-eslint/naming-convention -- Emscripten exported names */
 interface InchiModule {
@@ -36,21 +38,12 @@ export function loadInchiWasm(): Promise<InchiModule> {
 }
 
 async function decompressWasm(base64: string): Promise<Uint8Array> {
-  const compressed = base64ToBytes(base64);
-  const stream = new Blob([compressed.buffer as ArrayBuffer])
+  const compressed = decode(new TextEncoder().encode(base64));
+  const stream = new Blob([compressed as BlobPart])
     .stream()
     .pipeThrough(new DecompressionStream('gzip'));
   const buffer = await new Response(stream).arrayBuffer();
   return new Uint8Array(buffer);
-}
-
-function base64ToBytes(base64: string): Uint8Array {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.codePointAt(i) ?? 0;
-  }
-  return bytes;
 }
 
 /**
