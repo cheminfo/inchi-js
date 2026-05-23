@@ -1,0 +1,42 @@
+{
+  "name": "inchi.cheminfo.org",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Interactive web playground for the inchi-js library — round-trip molecule ↔ InChI ↔ InChIKey.",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "check-types": "tsc --noEmit",
+    "dev": "vite",
+    "eslint": "eslint src",
+    "eslint-fix": "eslint src --fix",
+    "preview": "vite preview",
+    "prettier": "prettier --check src",
+    "prettier-write": "prettier --write src",
+    "test": "npm run test-only && npm run check-types && npm run eslint && npm run prettier",
+    "test-only": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@blueprintjs/core": "^6.15.0",
+    "@blueprintjs/icons": "^6.10.0",
+    "inchi-js": "*",
+    "openchemlib": "^9.22.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-ocl": "^8.7.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^6.0.2",
+    "@vitest/coverage-v8": "^4.1.7",
+    "@zakodium/tsconfig": "^1.0.5",
+    "eslint": "^9.39.4",
+    "eslint-config-cheminfo-react": "^20.0.1",
+    "eslint-config-cheminfo-typescript": "^22.0.0",
+    "prettier": "^3.8.3",
+    "typescript": "^6.0.3",
+    "vite": "^8.0.14",
+    "vitest": "^4.1.7"
+  }
+}

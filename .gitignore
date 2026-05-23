@@ -1,0 +1,12 @@
+node_modules
+.claude
+coverage
+dist
+lib
+.DS_Store
+.env
+*.log
+
+# build artifacts
+packages/inchi-js/build/out
+packages/inchi-js/build/emsdk

@@ -1,0 +1,200 @@
+# inchi-js
+
+A self-contained TypeScript wrapper around the official
+[IUPAC InChI](https://www.inchi-trust.org/) C library compiled to
+WebAssembly. Convert MDL Molfiles to InChI/InChIKey and back, in Node
+and in the browser, without any external file or fetch — the WASM
+binary is gzip-compressed and base64-embedded inside the package.
+
+## Installation
+
+```bash
+npm install inchi-js
+```
+
+## Quick start
+
+```ts
+import {
+  inchiFromMolfile,
+  inchikeyFromInchi,
+  molfileFromInchi,
+} from 'inchi-js';
+
+const ethanol = `\
+  Mrv2014 01010100002D
+
+  3  2  0  0  0  0            999 V2000
+    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  2  3  1  0  0  0  0
+M  END
+`;
+
+const { inchi } = await inchiFromMolfile(ethanol);
+// → 'InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3'
+
+const { inchikey } = await inchikeyFromInchi(inchi);
+// → 'LFQSCWFLJHTTHZ-UHFFFAOYSA-N'
+
+const { molfile } = await molfileFromInchi(inchi);
+// → reconstructed Molfile
+```
+
+## API
+
+All four functions are `async` because the WASM module is initialised
+lazily on first call (and cached forever after).
+
+### `inchiFromMolfile(molfile, options?)`
+
+```ts
+inchiFromMolfile(molfile: string, options?: {
+  /** Raw InChI option string, e.g. '-AuxNone -DoNotAddH'. Default: '' */
+  options?: string;
+}): Promise<{
+  returnCode: -1 | 0 | 1;
+  inchi: string;
+  auxinfo: string;
+  message: string;
+  log: string;
+}>;
+```
+
+Wraps `MakeINCHIFromMolfileText`. `returnCode === 0` means success;
+`1` is a warning (the result is still usable, see `message`/`log`);
+`-1` is an error.
+
+The InChI option string is documented in the IUPAC InChI
+[Technical Manual](https://www.inchi-trust.org/download/104/InChI_TechMan.pdf).
+Common options include `-AuxNone`, `-DoNotAddH`, `-FixedH`, `-RecMet`,
+`-SUU`, `-SLUUD`.
+
+### `inchikeyFromInchi(inchi)`
+
+```ts
+inchikeyFromInchi(inchi: string): Promise<{
+  returnCode: -1 | 0 | 1;
+  inchikey: string;
+  message: string;
+}>;
+```
+
+Wraps `GetINCHIKeyFromINCHI`. Returns the 27-character InChIKey for a
+given InChI string.
+
+### `molfileFromInchi(inchi, options?)`
+
+```ts
+molfileFromInchi(inchi: string, options?: {
+  options?: string;
+}): Promise<{
+  returnCode: -1 | 0 | 1;
+  molfile: string;
+  message: string;
+  log: string;
+}>;
+```
+
+Wraps `GetStructFromINCHIEx` + `GetINCHIEx` with `-OutputSDF`.
+Reconstructs an MDL Molfile from an InChI string.
+
+### `molfileFromAuxinfo(auxinfo, options?)`
+
+```ts
+molfileFromAuxinfo(auxinfo: string, options?: {
+  /** Do not add explicit hydrogens. Default: false */
+  doNotAddH?: boolean;
+  /** Differentiate "unknown" from "undefined" stereo. Default: false */
+  diffUnkUndfStereo?: boolean;
+}): Promise<{
+  returnCode: -1 | 0 | 1;
+  molfile: string;
+  message: string;
+  log: string;
+}>;
+```
+
+Wraps `Get_inchi_Input_FromAuxInfo`. The MDL chiral flag stored in the
+AuxInfo is preserved when emitting the Molfile.
+
+### `loadInchiWasm()`
+
+Eagerly preloads the WASM module so the first conversion isn't slowed
+by the (one-time, ~100ms) instantiation. Returns the underlying
+Emscripten `Module` object.
+
+```ts
+import { loadInchiWasm } from 'inchi-js';
+
+await loadInchiWasm();
+```
+
+## How the WASM binary is shipped
+
+The library is intentionally fetch-free. At build time
+([build/build-wasm.sh](build/build-wasm.sh)):
+
+1. The IUPAC InChI C source from `vendor/inchi/INCHI-1-SRC/{INCHI_BASE,INCHI_API/libinchi}/src/*.c`
+   is linked with [`build/inchi_web.c`](build/inchi_web.c) (a JSON-emitting
+   wrapper adapted from
+   [`IUPAC-InChI/InChI-Web-Demo`](https://github.com/IUPAC-InChI/InChI-Web-Demo))
+   via Emscripten + CMake.
+2. The resulting `inchi.wasm` is gzip-compressed (`level: 9`) and
+   base64-encoded into [`src/wasm-data.ts`](src/wasm-data.ts).
+3. The Emscripten JS glue is rewritten as an ES module in
+   [`src/wasm-glue.ts`](src/wasm-glue.ts) and the factory function is
+   given the decoded bytes via the `wasmBinary` option — bypassing
+   `fetch` entirely.
+
+The generated `wasm-data.ts` and `wasm-glue.ts` files are committed,
+so consumers never need a C toolchain.
+
+## Test coverage vs. the upstream IUPAC suite
+
+`npm test` runs the full upstream IUPAC test corpus against the
+WebAssembly build, in addition to the small canonical tests under
+[`src/__tests__/`](src/__tests__/):
+
+| Folder | Mirrors | Coverage |
+|---|---|---|
+| [`__tests__/regression/inchiSdf.test.ts`](src/__tests__/regression/inchiSdf.test.ts) | `INCHI-1-TEST/tests/test_library/data/ci/inchi.sdf.gz` | 2,190 structures — every InChI must equal the reference SQLite snapshot, plus InChIKey parity on the first 100. Honors the upstream `expected_failures` list (4 known regressions). |
+| [`__tests__/regression/mculeSdf.test.ts`](src/__tests__/regression/mculeSdf.test.ts) | `INCHI-1-TEST/tests/test_library/data/ci/mcule.sdf.gz` | 2,000 mcule.com structures vs. the reference SQLite snapshot. |
+| [`__tests__/executable/github52.test.ts`](src/__tests__/executable/github52.test.ts) | `test_executable/test_github_52.py` | V3000 empty bond block parsing. |
+| [`__tests__/executable/testIo.test.ts`](src/__tests__/executable/testIo.test.ts) | `test_executable/test_io.py` | V3000 I/O edge cases: SCSR rejection, >999-atom rejection, `-LargeMolecules` switch, 999-atom acceptance. |
+| [`__tests__/executable/organometallicsPubchem.test.ts`](src/__tests__/executable/organometallicsPubchem.test.ts) | `test_executable/test_organometallics_pubchem.py` | Every structure in the PubChem organometallics fixture must yield an InChI under `-RecMet`. |
+| [`__tests__/executable/aromaticIons.test.ts`](src/__tests__/executable/aromaticIons.test.ts) | `test_executable/test_aromatic_ions.py` | Three aromatic-bond cation/anion cases — `xfail` in upstream and here (`test.fails`). |
+
+**Out of scope:** the upstream
+[`INCHI-1-TEST/tests/test_unit/`](https://github.com/IUPAC-InChI/InChI/tree/dev/INCHI-1-TEST/tests/test_unit)
+C++ unit tests (`test_strutil.cpp`, `test_ichican2.cpp`, …) exercise
+internal C functions that are not part of the public InChI API
+exposed via WebAssembly, and would require a separate native build.
+The upstream `test_executable` cases that depend on InChI CLI stderr
+parsing (`test_alex_clark_structures`, `test_organometallics_ccdc`,
+`test_github_67`, `test_github_40`, `test_pubchem_107`) are all marked
+`xfail` upstream and are skipped here as well — they document broken
+behavior rather than asserted invariants.
+
+## Rebuilding the WASM
+
+You only need this if you bump the InChI C version or change
+`build/inchi_web.c`. Requirements:
+
+- [Emscripten](https://emscripten.org/) ≥ 3 (`emcc`, `emcmake`)
+- CMake ≥ 3.15
+
+```bash
+git submodule update --init --recursive
+npm run build-wasm    # rebuilds src/wasm-data.ts + src/wasm-glue.ts
+npm run tsc           # recompiles the lib/ output
+npm test              # runs the test suite to verify
+```
+
+## License
+
+MIT — Copyright (c) cheminfo. See [LICENSE](./LICENSE) for the full
+text and the acknowledgement of the bundled IUPAC InChI software
+(also MIT, Copyright (c) 2024 InChI Project).

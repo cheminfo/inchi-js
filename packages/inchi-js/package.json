@@ -1,0 +1,49 @@
+{
+  "name": "inchi-js",
+  "version": "0.1.0",
+  "license": "MIT",
+  "description": "InChI engine in TypeScript: convert Molfile ↔ InChI ↔ InChIKey. Wraps the official IUPAC InChI C library compiled to WebAssembly and base64-embedded so the package is self-contained.",
+  "keywords": [
+    "inchi",
+    "inchikey",
+    "molfile",
+    "cheminformatics",
+    "iupac",
+    "wasm",
+    "webassembly"
+  ],
+  "author": "Luc Patiny",
+  "type": "module",
+  "exports": {
+    ".": "./lib/index.js"
+  },
+  "files": [
+    "lib",
+    "src"
+  ],
+  "scripts": {
+    "build-wasm": "bash build/build-wasm.sh",
+    "check-types": "tsc --noEmit",
+    "clean": "rimraf coverage lib",
+    "eslint": "eslint src",
+    "eslint-fix": "eslint src --fix",
+    "prepack": "npm run tsc",
+    "prettier": "prettier --check src",
+    "prettier-write": "prettier --write src",
+    "test": "npm run test-only && npm run check-types && npm run eslint && npm run prettier",
+    "test-only": "vitest run --coverage",
+    "tsc": "npm run clean && npm run tsc-build",
+    "tsc-build": "tsc --project tsconfig.build.json"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@vitest/coverage-v8": "^4.1.7",
+    "@zakodium/tsconfig": "^1.0.5",
+    "eslint": "^9.39.4",
+    "eslint-config-cheminfo-typescript": "^22.0.0",
+    "prettier": "^3.8.3",
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.7"
+  }
+}

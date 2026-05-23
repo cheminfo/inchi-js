@@ -1,0 +1,6 @@
+CHANGELOG.md
+coverage
+node_modules
+vendor
+packages/inchi-js/src/wasm-data.ts
+packages/inchi-js/build/out

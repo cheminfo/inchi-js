@@ -1,0 +1,13 @@
+.git
+.github
+.claude
+node_modules
+**/node_modules
+**/dist
+**/lib
+**/coverage
+*.log
+.DS_Store
+.env
+vendor/inchi/.git
+packages/inchi-js/build/out

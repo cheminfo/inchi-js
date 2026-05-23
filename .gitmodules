@@ -1,0 +1,4 @@
+[submodule "vendor/inchi"]
+	path = vendor/inchi
+	url = https://github.com/IUPAC-InChI/InChI.git
+	branch = dev

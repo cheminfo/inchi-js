@@ -1,0 +1,24 @@
+{
+  "name": "inchi-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Monorepo for the inchi-js library and its inchi.cheminfo.org playground.",
+  "type": "module",
+  "workspaces": [
+    "packages/inchi-js",
+    "packages/inchi.cheminfo.org"
+  ],
+  "scripts": {
+    "build": "npm run build-lib && npm run build -w inchi.cheminfo.org",
+    "build-lib": "npm run tsc -w inchi-js",
+    "build-wasm": "npm run build-wasm -w inchi-js",
+    "check-types": "npm run build-lib && npm run check-types -w inchi-js && npm run check-types -w inchi.cheminfo.org",
+    "dev": "npm run dev -w inchi.cheminfo.org",
+    "eslint": "npm run eslint -w inchi-js && npm run eslint -w inchi.cheminfo.org",
+    "eslint-fix": "npm run eslint-fix -w inchi-js && npm run eslint-fix -w inchi.cheminfo.org",
+    "prettier": "npm run prettier -w inchi-js && npm run prettier -w inchi.cheminfo.org",
+    "prettier-write": "npm run prettier-write -w inchi-js && npm run prettier-write -w inchi.cheminfo.org",
+    "test": "npm run test -w inchi-js && npm run build-lib && npm run test -w inchi.cheminfo.org",
+    "test-only": "npm run test-only -w inchi-js && npm run test-only -w inchi.cheminfo.org"
+  }
+}
