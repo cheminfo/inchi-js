@@ -1,6 +1,6 @@
 {
   "name": "inchi-monorepo",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Monorepo for the inchi-js library and its inchi.cheminfo.org playground.",
   "type": "module",
