@@ -12,5 +12,5 @@
       "include-component-in-tag": true
     }
   },
-  "separate-pull-requests": true
+  "separate-pull-requests": false
 }
