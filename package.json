@@ -19,6 +19,7 @@
     "prettier": "npm run prettier -w inchi-js && npm run prettier -w inchi.cheminfo.org",
     "prettier-write": "npm run prettier-write -w inchi-js && npm run prettier-write -w inchi.cheminfo.org",
     "test": "npm run test -w inchi-js && npm run build-lib && npm run test -w inchi.cheminfo.org",
+    "test-e2e": "npm run test-e2e -w inchi.cheminfo.org",
     "test-only": "npm run test-only -w inchi-js && npm run test-only -w inchi.cheminfo.org"
   }
 }

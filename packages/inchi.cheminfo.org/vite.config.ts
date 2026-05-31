@@ -1,12 +1,12 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import react from '@vitejs/plugin-react';
 import type { Plugin } from 'vite';
-import { defineConfig } from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = import.meta.dirname;
 const repoRoot = join(here, '..', '..');
 const inchiJsDir = join(repoRoot, 'packages', 'inchi-js');
 const inchiJsPkg = JSON.parse(
@@ -109,17 +109,14 @@ function downloadPlugin(): Plugin {
         res.setHeader('Cache-Control', 'max-age=300');
         res.end(buf);
       });
-      server.middlewares.use(
-        '/embed-example.html',
-        (_req, res, next) => {
-          try {
-            res.setHeader('Content-Type', 'text/html; charset=utf-8');
-            res.end(embedExampleHtml('./lib/inchi-js.min.js'));
-          } catch {
-            next();
-          }
-        },
-      );
+      server.middlewares.use('/embed-example.html', (_req, res, next) => {
+        try {
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.end(embedExampleHtml('./lib/inchi-js.min.js'));
+        } catch {
+          next();
+        }
+      });
     },
     generateBundle() {
       for (const [name, sub] of Object.entries(DOWNLOAD_ASSETS)) {
@@ -201,6 +198,7 @@ function embedExampleHtml(scriptUrl: string): string {
 
     <label for="molfile"><strong>Molfile (V2000 or V3000)</strong></label>
     <textarea id="molfile">
+
   Mrv1810 01010000002D
 
   3  2  0  0  0  0            999 V2000
@@ -271,25 +269,33 @@ function bundleSize(file: string): number {
   }
 }
 
-export default defineConfig({
-  base: process.env.BASE_PATH ?? '/',
-  define: {
-    __INCHI_JS_VERSION__: JSON.stringify(inchiJsPkg.version),
-    __INCHI_JS_MIN_SIZE__: JSON.stringify(
-      bundleSize('packages/inchi-js/lib/inchi-js.min.js'),
-    ),
-    __INCHI_JS_FULL_SIZE__: JSON.stringify(
-      bundleSize('packages/inchi-js/lib/inchi-js.js'),
-    ),
-  },
-  plugins: [react(), vendorTestDataPlugin(), downloadPlugin()],
-  resolve: {
-    alias: {
-      'inchi-js': libSrc,
+export default defineConfig(({ mode }) => {
+  // Load `.env` from the monorepo root (where the shared PORT lives) so the
+  // dev server can bind the same port the Docker deployment publishes.
+  // The empty prefix loads every key, not just `VITE_`-prefixed ones.
+  const env = loadEnv(mode, repoRoot, '');
+  const port = Number(env.PORT) || 5173;
+
+  return {
+    base: process.env.BASE_PATH ?? '/',
+    define: {
+      __INCHI_JS_VERSION__: JSON.stringify(inchiJsPkg.version),
+      __INCHI_JS_MIN_SIZE__: JSON.stringify(
+        bundleSize('packages/inchi-js/lib/inchi-js.min.js'),
+      ),
+      __INCHI_JS_FULL_SIZE__: JSON.stringify(
+        bundleSize('packages/inchi-js/lib/inchi-js.js'),
+      ),
     },
-  },
-  server: {
-    host: true,
-    port: 5173,
-  },
+    plugins: [react(), vendorTestDataPlugin(), downloadPlugin()],
+    resolve: {
+      alias: {
+        'inchi-js': libSrc,
+      },
+    },
+    server: {
+      host: true,
+      port,
+    },
+  };
 });

@@ -5,12 +5,19 @@ import { useCallback, useEffect, useState } from 'react';
 import { AboutPanel } from './components/AboutPanel.tsx';
 import { DownloadPanel } from './components/DownloadPanel.tsx';
 import { InchiToStructurePanel } from './components/InchiToStructurePanel.tsx';
+import { SdfToInchiPanel } from './components/SdfToInchiPanel.tsx';
 import { StructureToInchiPanel } from './components/StructureToInchiPanel.tsx';
 import { TestsPanel } from './components/TestsPanel.tsx';
 
-type TabId = 'convert' | 'tests' | 'download' | 'about';
+type TabId = 'convert' | 'sdf' | 'tests' | 'download' | 'about';
 
-const VALID_TABS = new Set<TabId>(['convert', 'tests', 'download', 'about']);
+const VALID_TABS = new Set<TabId>([
+  'convert',
+  'sdf',
+  'tests',
+  'download',
+  'about',
+]);
 
 function readInitialTab(): TabId {
   const raw = globalThis.location.hash.replace(/^#\/?/, '').split('/')[0];
@@ -19,9 +26,11 @@ function readInitialTab(): TabId {
 }
 
 /**
- * Root of the playground. Four tabs:
+ * Root of the playground. Five tabs:
  *
  *   • Convert — structure ↔ InChI live conversion.
+ *   • SDF — batch Molfile → InChI over a whole SDF file, listed in a
+ *     virtualized table, re-downloadable with InChI/InChIKey fields added.
  *   • Tests — Molfile → InChI (must pass) and full
  *     Molfile → InChI → Molfile → InChI roundtrip (InChI strings must
  *     match) against the vendored IUPAC test SDFs.
@@ -97,6 +106,15 @@ export function App() {
             <div className="panel-grid" style={{ marginTop: 12 }}>
               <StructureToInchiPanel />
               <InchiToStructurePanel />
+            </div>
+          }
+        />
+        <Tab
+          id="sdf"
+          title="SDF"
+          panel={
+            <div style={{ marginTop: 12 }}>
+              <SdfToInchiPanel />
             </div>
           }
         />
