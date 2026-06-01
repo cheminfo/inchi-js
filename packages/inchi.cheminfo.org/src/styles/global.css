@@ -59,6 +59,7 @@ body {
   align-items: center;
   gap: 7px;
   color: #2d72d2;
+  text-decoration: none;
 }
 
 .app-brand-name {
@@ -366,4 +367,183 @@ body {
 .molecule-detail-field-value {
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* ── Home / landing page ─────────────────────────────────────────────── */
+
+.home {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding-bottom: 8px;
+}
+
+.home-hero {
+  background: linear-gradient(135deg, #eaf2fe 0%, #f6f9fe 55%, #ffffff 100%);
+  border: 1px solid #cdddf3;
+  border-radius: 12px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.home-hero-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #2d72d2;
+}
+
+.home-hero-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.home-hero-title {
+  margin: 0;
+  font-size: 34px;
+  line-height: 1.1;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #1c2127;
+}
+
+.home-hero-lead {
+  margin: 0;
+  max-width: 760px;
+  font-size: 17px;
+  line-height: 1.55;
+  color: #404854;
+}
+
+.home-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.home-hero-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.home-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 720px) {
+  .home-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 22px;
+  background: white;
+  border: 1px solid #d3d8de;
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.home-card:hover {
+  border-color: #2d72d2;
+  box-shadow: 0 6px 18px rgba(45, 114, 210, 0.12);
+  transform: translateY(-2px);
+}
+
+.home-card-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 11px;
+  background: linear-gradient(135deg, #2d72d2, #4a8cf0);
+  color: white;
+  margin-bottom: 4px;
+}
+
+.home-card-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: #1c2127;
+}
+
+.home-card-desc {
+  font-size: 14px;
+  line-height: 1.5;
+  color: #5f6b7c;
+}
+
+.home-card-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d72d2;
+}
+
+.home-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 860px) {
+  .home-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+.home-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 18px;
+  background: white;
+  border: 1px solid #d3d8de;
+  border-radius: 10px;
+}
+
+.home-feature-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex: none;
+  border-radius: 9px;
+  background: #e6f0fb;
+  color: #2d72d2;
+}
+
+.home-feature-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1c2127;
+  margin-bottom: 3px;
+}
+
+.home-feature-desc {
+  font-size: 13px;
+  line-height: 1.45;
+  color: #5f6b7c;
 }
