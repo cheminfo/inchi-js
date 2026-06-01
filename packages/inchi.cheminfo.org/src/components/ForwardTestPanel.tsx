@@ -153,7 +153,7 @@ export function ForwardTestPanel() {
     selectedIndex === null ? null : (rows[selectedIndex] ?? null);
 
   return (
-    <div className="panel" style={{ gap: 16 }}>
+    <div className="panel panel--fill" style={{ gap: 16 }}>
       <h2 className="section-title">
         <Icon icon="arrow-right" /> Molfile → InChI
       </h2>
@@ -234,7 +234,11 @@ export function ForwardTestPanel() {
               No structures match the current filter.
             </div>
           ) : (
-            <div className={selectedRow ? 'sdf-split' : undefined}>
+            <div
+              className={
+                selectedRow ? 'sdf-table-region sdf-split' : 'sdf-table-region'
+              }
+            >
               <MoleculeTable
                 rows={filteredRows}
                 selectedIndex={selectedIndex}

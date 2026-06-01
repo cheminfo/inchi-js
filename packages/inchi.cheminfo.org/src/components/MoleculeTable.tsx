@@ -1,11 +1,13 @@
 import type { Intent } from '@blueprintjs/core';
-import { Tag, Tooltip } from '@blueprintjs/core';
+import { Tag } from '@blueprintjs/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef } from 'react';
 import type { ErrorComponentProps } from 'react-ocl';
 import { MolfileSvgRenderer } from 'react-ocl';
 
 import type { InchiStatus } from '../sdf/sdfInchi.ts';
+
+import { EllipsisTooltip, FastTooltip } from './FastTooltip.tsx';
 
 export type RowStatus = InchiStatus | 'pending';
 
@@ -151,7 +153,7 @@ export function MoleculeTable({
               break;
           }
         }}
-        style={{ overflow: 'auto', maxHeight: 620, outline: 'none' }}
+        style={{ flex: 1, minHeight: 0, overflow: 'auto', outline: 'none' }}
       >
         <div
           style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
@@ -230,9 +232,10 @@ function RowCells({ row }: { row: MoleculeRow }) {
           ErrorComponent={StructureError}
         />
       </div>
-      <div className="mono molecule-table-ellipsis" title={row.id}>
-        {row.id}
-      </div>
+      <EllipsisTooltip
+        className="mono molecule-table-ellipsis"
+        value={row.id}
+      />
       <ValueCell value={row.inchi} />
       <ValueCell value={row.inchikey} />
       <div>
@@ -276,32 +279,32 @@ function StatusTag({
   );
   if (!message) return tag;
   return (
-    <Tooltip
-      content={message}
-      placement="top"
-      compact
-      hoverOpenDelay={150}
-      popoverClassName="molecule-table-tooltip"
-    >
+    <FastTooltip content={message} popoverClassName="molecule-table-tooltip">
       {tag}
-    </Tooltip>
+    </FastTooltip>
   );
 }
 
 function ValueCell({ value }: { value: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
-      <span className="mono molecule-table-ellipsis" title={value}>
+      <EllipsisTooltip
+        tag="span"
+        className="mono molecule-table-ellipsis"
+        value={value}
+      >
         {value || <span className="muted">—</span>}
-      </span>
+      </EllipsisTooltip>
     </div>
   );
 }
 
 function StructureError({ value }: ErrorComponentProps) {
   return (
-    <span className="muted" style={{ fontSize: 11 }} title={value}>
-      no structure
-    </span>
+    <FastTooltip content={value}>
+      <span className="muted" style={{ fontSize: 11 }}>
+        no structure
+      </span>
+    </FastTooltip>
   );
 }

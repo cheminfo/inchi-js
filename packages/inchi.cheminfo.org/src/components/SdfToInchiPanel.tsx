@@ -16,6 +16,7 @@ import type {
   SdfInchiWorkerOutbound,
 } from '../sdf/sdfInchiWorker.ts';
 
+import { EllipsisTooltip } from './FastTooltip.tsx';
 import { MoleculeDetails } from './MoleculeDetails.tsx';
 import type { MoleculeRow } from './MoleculeTable.tsx';
 import { MoleculeTable } from './MoleculeTable.tsx';
@@ -50,6 +51,7 @@ export function SdfToInchiPanel() {
   const [activeFilters, setActiveFilters] = useState<Set<StatusFilter>>(
     () => new Set(),
   );
+  const [dropZoneOpen, setDropZoneOpen] = useState(true);
   const workerRef = useRef<Worker | null>(null);
 
   const toggleFilter = useCallback((filter: StatusFilter) => {
@@ -88,6 +90,8 @@ export function SdfToInchiPanel() {
       setRows(buildRows(result.molecules, null));
       if (result.molecules.length === 0) {
         setError('No molecules were found in this file.');
+      } else {
+        setDropZoneOpen(false);
       }
     } catch (error_) {
       setError(error_ instanceof Error ? error_.message : String(error_));
@@ -192,74 +196,112 @@ export function SdfToInchiPanel() {
     selectedIndex === null ? null : (rows[selectedIndex] ?? null);
   const selectedMolecule =
     selectedIndex === null ? null : (molecules[selectedIndex] ?? null);
+  const fileLoaded = molecules.length > 0 && !dropZoneOpen;
 
   return (
-    <div className="panel" style={{ gap: 16 }}>
+    <div className="panel panel--fill" style={{ gap: 16 }}>
       <h2 className="section-title">
         <Icon icon="th" /> SDF → InChI
       </h2>
-      <div className="muted">
-        Load an SDF file — drag-and-drop it onto the box below, or click to
-        browse — to compute the InChI and InChIKey of every structure, review
-        them in the table, then download a new SDF with the{' '}
-        <code>{INCHI_FIELD}</code> and <code>{INCHIKEY_FIELD}</code> fields
-        added.
-      </div>
+      {!fileLoaded && (
+        <div className="muted">
+          Load an SDF file — drag-and-drop it onto the box below, or click to
+          browse — to compute the InChI and InChIKey of every structure, review
+          them in the table, then download a new SDF with the{' '}
+          <code>{INCHI_FIELD}</code> and <code>{INCHIKEY_FIELD}</code> fields
+          added.
+        </div>
+      )}
 
-      <div
-        data-testid="sdf-dropzone"
-        style={{ height: 160, overflow: 'hidden' }}
-      >
-        <DropZoneContainer
-          onDrop={handleDrop}
-          disabled={parsing || running}
-          multiple={false}
-          noClick={false}
+      {fileLoaded ? (
+        <div
+          data-testid="sdf-file-bar"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 12,
+            padding: '10px 14px',
+            border: `1px solid ${Colors.GRAY4}`,
+            borderRadius: 4,
+          }}
         >
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 6,
-              height: '100%',
-              padding: 16,
-              boxSizing: 'border-box',
-              border: `5px dashed ${Colors.GRAY3}`,
-              cursor: parsing || running ? 'default' : 'pointer',
-              textAlign: 'center',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            {molecules.length > 0 ? (
-              <>
-                <Icon icon="document" size={24} intent="primary" />
-                <div
-                  title={fileName ?? undefined}
-                  className="mono molecule-table-ellipsis"
-                  style={{ fontWeight: 600, maxWidth: '90%' }}
-                >
-                  {fileName ?? 'SDF loaded'}
-                </div>
-                <div className="muted" style={{ fontSize: 13 }}>
-                  {molecules.length.toLocaleString()} structures loaded — drop
-                  or click to replace
-                </div>
-              </>
-            ) : (
-              <>
-                <Icon icon="import" size={32} />
-                <div style={{ fontWeight: 600, fontSize: 16 }}>
-                  Drop an SDF file here
-                </div>
-                <div className="muted" style={{ fontSize: 13 }}>
-                  Supports .sdf, .sdf.gz and .mol — or click to browse.
-                </div>
-              </>
-            )}
+          <Icon icon="document" intent="primary" />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <EllipsisTooltip
+              className="mono molecule-table-ellipsis"
+              style={{ fontWeight: 600 }}
+              value={fileName ?? ''}
+            >
+              {fileName ?? 'SDF loaded'}
+            </EllipsisTooltip>
+            <div className="muted" style={{ fontSize: 13 }}>
+              {molecules.length.toLocaleString()} structures loaded
+            </div>
           </div>
-        </DropZoneContainer>
-      </div>
+          <Button
+            icon="exchange"
+            disabled={parsing || running}
+            onClick={() => setDropZoneOpen(true)}
+          >
+            Replace file
+          </Button>
+        </div>
+      ) : (
+        <div
+          data-testid="sdf-dropzone"
+          style={{ height: 160, overflow: 'hidden' }}
+        >
+          <DropZoneContainer
+            onDrop={handleDrop}
+            disabled={parsing || running}
+            multiple={false}
+            noClick={false}
+          >
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6,
+                height: '100%',
+                padding: 16,
+                boxSizing: 'border-box',
+                border: `5px dashed ${Colors.GRAY3}`,
+                cursor: parsing || running ? 'default' : 'pointer',
+                textAlign: 'center',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {molecules.length > 0 ? (
+                <>
+                  <Icon icon="document" size={24} intent="primary" />
+                  <EllipsisTooltip
+                    className="mono molecule-table-ellipsis"
+                    style={{ fontWeight: 600, maxWidth: '90%' }}
+                    value={fileName ?? ''}
+                  >
+                    {fileName ?? 'SDF loaded'}
+                  </EllipsisTooltip>
+                  <div className="muted" style={{ fontSize: 13 }}>
+                    {molecules.length.toLocaleString()} structures loaded — drop
+                    or click to replace
+                  </div>
+                </>
+              ) : (
+                <>
+                  <Icon icon="import" size={32} />
+                  <div style={{ fontWeight: 600, fontSize: 16 }}>
+                    Drop an SDF file here
+                  </div>
+                  <div className="muted" style={{ fontSize: 13 }}>
+                    Supports .sdf, .sdf.gz and .mol — or click to browse.
+                  </div>
+                </>
+              )}
+            </div>
+          </DropZoneContainer>
+        </div>
+      )}
 
       <div
         style={{
@@ -328,7 +370,11 @@ export function SdfToInchiPanel() {
 
       {rows.length > 0 && (
         <div
-          className={selectedRow && selectedMolecule ? 'sdf-split' : undefined}
+          className={
+            selectedRow && selectedMolecule
+              ? 'sdf-table-region sdf-split'
+              : 'sdf-table-region'
+          }
         >
           <MoleculeTable
             rows={filteredRows}

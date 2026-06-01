@@ -21,6 +21,8 @@ import type {
   WorkerOutbound,
 } from '../roundtrip/roundtripWorker.ts';
 
+import { EllipsisTooltip } from './FastTooltip.tsx';
+
 type Filter = 'all' | 'failed' | 'ok';
 
 const STATUS_LABEL: Record<RoundtripStatus, string> = {
@@ -435,28 +437,30 @@ function ResultsTable({ rows }: { rows: RoundtripResult[] }) {
               <td className="mono" style={{ whiteSpace: 'nowrap' }}>
                 {row.molfileId}
               </td>
-              <td
+              <EllipsisTooltip
+                tag="td"
                 className="mono"
                 style={{
                   maxWidth: 280,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}
-                title={row.inchi}
+                value={row.inchi}
               >
                 {row.inchi || <span className="muted">—</span>}
-              </td>
-              <td
+              </EllipsisTooltip>
+              <EllipsisTooltip
+                tag="td"
                 className="mono"
                 style={{
                   maxWidth: 280,
                   overflow: 'hidden',
                   textOverflow: 'ellipsis',
                 }}
-                title={row.roundtripInchi}
+                value={row.roundtripInchi}
               >
                 {row.roundtripInchi || <span className="muted">—</span>}
-              </td>
+              </EllipsisTooltip>
               <td style={{ fontSize: 12 }}>
                 {row.message ? (
                   <span style={{ color: '#8e292c' }}>{row.message}</span>

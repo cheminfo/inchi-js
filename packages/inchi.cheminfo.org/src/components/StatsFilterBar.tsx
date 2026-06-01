@@ -1,5 +1,6 @@
 import { Button, Callout, Tag } from '@blueprintjs/core';
 
+import { FastTooltip } from './FastTooltip.tsx';
 import type { Stats, StatusFilter } from './sdfRows.ts';
 
 const FILTERS: Array<{
@@ -108,16 +109,17 @@ function FilterTag({
   if (!interactive) title = `No ${label.toLowerCase()} to filter`;
   else if (active) title = `Showing only ${label} — click to clear`;
   return (
-    <Tag
-      intent={intent}
-      minimal={!active}
-      interactive={interactive}
-      icon={active ? 'filter' : undefined}
-      title={title}
-      onClick={interactive ? onToggle : undefined}
-      style={interactive ? undefined : { opacity: 0.55, cursor: 'default' }}
-    >
-      {label}: {count}
-    </Tag>
+    <FastTooltip content={title}>
+      <Tag
+        intent={intent}
+        minimal={!active}
+        interactive={interactive}
+        icon={active ? 'filter' : undefined}
+        onClick={interactive ? onToggle : undefined}
+        style={interactive ? undefined : { opacity: 0.55, cursor: 'default' }}
+      >
+        {label}: {count}
+      </Tag>
+    </FastTooltip>
   );
 }

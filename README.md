@@ -1,15 +1,58 @@
 # inchi
 
-Monorepo for the IUPAC InChI WebAssembly engine: a TypeScript library
-that wraps the official IUPAC InChI C library compiled to WebAssembly,
-plus an interactive web playground using react-ocl.
+A self-contained TypeScript wrapper around the official
+[IUPAC InChI](https://www.inchi-trust.org/) C library compiled to
+WebAssembly. Convert MDL Molfiles to InChI/InChIKey and back, in Node
+and in the browser, without any external file or fetch — the WASM
+binary is gzip-compressed and base64-embedded inside the package.
 
-## Packages
+The published library lives in
+[`packages/inchi-js/`](packages/inchi-js/) and is released to npm as
+[`inchi-js`](https://www.npmjs.com/package/inchi-js).
 
-| Path                                                       | Name                  | Published as | Purpose                                                                                                       |
-| ---------------------------------------------------------- | --------------------- | ------------ | ------------------------------------------------------------------------------------------------------------- |
-| [`packages/inchi-js/`](packages/inchi-js/)                 | `inchi-js`            | npm          | The WASM-backed engine. Converts Molfile ↔ InChI ↔ InChIKey. Self-contained — WASM is base64-embedded.        |
-| [`packages/inchi.cheminfo.org/`](packages/inchi.cheminfo.org/) | `inchi.cheminfo.org` | static site  | Interactive playground (React + react-ocl) for the library.                                                   |
+## Installation
+
+```bash
+npm install inchi-js
+```
+
+## Quick start
+
+```ts
+import {
+  inchiFromMolfile,
+  inchikeyFromInchi,
+  molfileFromInchi,
+} from 'inchi-js';
+
+const molfile = `\
+  Mrv2014 01010100002D
+
+  3  2  0  0  0  0            999 V2000
+    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    1.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
+    2.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
+  1  2  1  0  0  0  0
+  2  3  1  0  0  0  0
+M  END
+`;
+
+const { inchi, auxinfo } = await inchiFromMolfile(molfile);
+// → 'InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3'
+
+const { inchikey } = await inchikeyFromInchi(inchi);
+// → 'LFQSCWFLJHTTHZ-UHFFFAOYSA-N'
+
+const { molfile: regenerated } = await molfileFromInchi(inchi);
+```
+
+All four conversion functions — `inchiFromMolfile`,
+`inchikeyFromInchi`, `molfileFromInchi`, and `molfileFromAuxinfo` — are
+`async`: the WASM module is instantiated lazily on first call and
+cached forever after. See
+[`packages/inchi-js/README.md`](packages/inchi-js/README.md) for the
+full API reference, option strings, and details on how the WASM binary
+is shipped.
 
 ## InChI source
 
@@ -23,16 +66,15 @@ git clone --recurse-submodules https://github.com/cheminfo/inchi.git
 git submodule update --init --recursive
 ```
 
-## Local development
+## Working on the library
 
 ```bash
 npm install
-npm run dev
+npm test            # type-check, lint, and run the test suite
 ```
 
-Vite serves the website at `http://localhost:5173/`. The library is
-resolved directly from `packages/inchi-js/src/index.ts` via a vite
-alias, so edits to the engine show up live.
+The library source is in [`packages/inchi-js/src/`](packages/inchi-js/src/).
+`npm run build-lib` compiles it to `packages/inchi-js/lib`.
 
 ## Building the WASM module
 
@@ -61,99 +103,12 @@ never need a C toolchain.
 
 ## Scripts
 
-| Command               | Effect                                                                       |
-| --------------------- | ---------------------------------------------------------------------------- |
-| `npm run dev`         | Start the playground (vite dev server).                                      |
-| `npm run build`       | Build the library and the playground production bundle.                       |
-| `npm run build-lib`   | Compile the library to `packages/inchi-js/lib`.                              |
-| `npm run build-wasm`  | Rebuild the WASM module from `vendor/inchi/` (requires emscripten + cmake).   |
-| `npm test`            | Per-workspace `vitest run --coverage` + type-check + eslint + prettier.      |
-| `npm run test-only`   | Tests only, skip lint/types.                                                  |
-
-## Deployment (`inchi.cheminfo.org`)
-
-The playground ships as a static Docker image built from
-[`Dockerfile`](Dockerfile) — Vite output served by
-[`static-web-server`](https://github.com/static-web-server/static-web-server)
-on port `80` inside the container. Three example compose files cover
-the common deployment modes; pick one, copy it to `compose.yaml`,
-adjust if needed, and start it. Built images are also published to
-`ghcr.io/cheminfo/inchi:latest`, so a deployment host only needs
-Docker — no Node.js, no submodule, no build step.
-
-### 1. Direct port mapping (default)
-
-Publishes the container on a host port (default `8080`). Useful for
-local testing or behind any reverse proxy you already operate.
-
-```bash
-cp .env.example .env             # adjust PORT if 8080 is taken
-cp compose.example.yaml compose.yaml
-docker compose pull              # or: docker compose up -d --build
-docker compose up -d
-```
-
-### 2. Cloudflare Tunnel
-
-Runs a `cloudflared` sidecar that connects to a tunnel you created in
-the Cloudflare dashboard — the container is reachable over HTTPS at
-the public hostname you assign (default `inchi.lactame.com`) without
-opening any inbound port.
-
-```bash
-cp .env.example .env             # fill in TUNNEL_TOKEN=...
-cp compose.example.cloudflared.yaml compose.yaml
-docker compose up -d
-```
-
-Cloudflare dashboard steps: **Networking → Tunnels → Create a tunnel
-→ Cloudflared connector**, copy the token into `.env`, then under
-**Published applications** add `Service = HTTP`, `URL =
-inchi-cheminfo-org:80`, hostname = `inchi.lactame.com`.
-
-### 3. Traefik reverse proxy
-
-For hosts that already run Traefik on a shared `traefik` Docker
-network with a `websecure` entrypoint and a `letsencrypt` cert
-resolver. No port is published on the host — Traefik routes traffic
-to the container over the shared network.
-
-```bash
-cp compose.example.traefik.yaml compose.yaml
-# adjust the Host(`...`) label in compose.yaml to your hostname
-docker compose up -d
-```
-
-The default hostname in the example is `inchi.cheminfo.org`.
-
-## Library quick start
-
-```ts
-import { inchiFromMolfile, inchikeyFromInchi, molfileFromInchi } from 'inchi-js';
-
-const molfile = `\
-  Mrv2014 01010100002D
-
-  3  2  0  0  0  0            999 V2000
-    0.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    1.0000    0.0000    0.0000 C   0  0  0  0  0  0  0  0  0  0  0  0
-    2.0000    0.0000    0.0000 O   0  0  0  0  0  0  0  0  0  0  0  0
-  1  2  1  0  0  0  0
-  2  3  1  0  0  0  0
-M  END
-`;
-
-const { inchi, auxinfo } = await inchiFromMolfile(molfile);
-// → 'InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3'
-
-const { inchikey } = await inchikeyFromInchi(inchi);
-// → 'LFQSCWFLJHTTHZ-UHFFFAOYSA-N'
-
-const { molfile: regenerated } = await molfileFromInchi(inchi);
-```
-
-See [`packages/inchi-js/README.md`](packages/inchi-js/README.md) for
-the full library docs.
+| Command              | Effect                                                                      |
+| -------------------- | --------------------------------------------------------------------------- |
+| `npm run build-lib`  | Compile the library to `packages/inchi-js/lib`.                             |
+| `npm run build-wasm` | Rebuild the WASM module from `vendor/inchi/` (requires emscripten + cmake). |
+| `npm test`           | `vitest run --coverage` + type-check + eslint + prettier.                   |
+| `npm run test-only`  | Tests only, skip lint/types.                                                |
 
 ## Credits
 

@@ -4,7 +4,9 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { AboutPanel } from './components/AboutPanel.tsx';
 import { DownloadPanel } from './components/DownloadPanel.tsx';
+import { FastTooltip } from './components/FastTooltip.tsx';
 import { InchiToStructurePanel } from './components/InchiToStructurePanel.tsx';
+import { Logo } from './components/Logo.tsx';
 import { SdfToInchiPanel } from './components/SdfToInchiPanel.tsx';
 import { StructureToInchiPanel } from './components/StructureToInchiPanel.tsx';
 import { TestsPanel } from './components/TestsPanel.tsx';
@@ -58,86 +60,61 @@ export function App() {
 
   return (
     <div className="app-shell">
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          marginBottom: 16,
-          flexWrap: 'wrap',
-          gap: 12,
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: 22 }}>
-          inchi.cheminfo.org — InChI playground
-        </h1>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <a
-            href="https://github.com/IUPAC-InChI/InChI"
-            target="_blank"
-            rel="noreferrer"
-            style={{ fontSize: 13 }}
-            title="Version of the IUPAC InChI C library compiled to the embedded WASM"
-          >
-            IUPAC InChI v{INCHI_C_VERSION}
-          </a>
+      <header className="app-header">
+        <div className="app-brand">
+          <Logo size={20} />
+          <span className="app-brand-name">InChI JS</span>
+        </div>
+        <Tabs
+          id="root-tabs"
+          className="app-nav"
+          selectedTabId={tabId}
+          onChange={handleTabChange}
+        >
+          <Tab id="convert" title="Convert" />
+          <Tab id="sdf" title="SDF" />
+          <Tab id="tests" title="Tests" />
+          <Tab id="download" title="Download" />
+          <Tab id="about" title="About" />
+        </Tabs>
+        <div className="app-links">
+          <FastTooltip content="Version of the IUPAC InChI C library compiled to the embedded WASM">
+            <a
+              href="https://github.com/IUPAC-InChI/InChI"
+              target="_blank"
+              rel="noreferrer"
+            >
+              InChI v{INCHI_C_VERSION}
+            </a>
+          </FastTooltip>
           <a
             href="https://github.com/cheminfo/inchi"
             target="_blank"
             rel="noreferrer"
-            style={{ fontSize: 13 }}
           >
             source
           </a>
         </div>
-      </div>
+      </header>
 
-      <Tabs
-        id="root-tabs"
-        size="large"
-        selectedTabId={tabId}
-        onChange={handleTabChange}
-        renderActiveTabPanelOnly
+      <main
+        className={
+          tabId === 'sdf' || tabId === 'tests'
+            ? 'app-main app-main--fill'
+            : 'app-main'
+        }
       >
-        <Tab
-          id="convert"
-          title="Convert"
-          panel={
-            <div className="panel-grid" style={{ marginTop: 12 }}>
-              <StructureToInchiPanel />
-              <InchiToStructurePanel />
-            </div>
-          }
-        />
-        <Tab
-          id="sdf"
-          title="SDF"
-          panel={
-            <div style={{ marginTop: 12 }}>
-              <SdfToInchiPanel />
-            </div>
-          }
-        />
-        <Tab id="tests" title="Tests" panel={<TestsPanel />} />
-        <Tab
-          id="download"
-          title="Download"
-          panel={
-            <div style={{ marginTop: 12 }}>
-              <DownloadPanel />
-            </div>
-          }
-        />
-        <Tab
-          id="about"
-          title="About"
-          panel={
-            <div style={{ marginTop: 12 }}>
-              <AboutPanel />
-            </div>
-          }
-        />
-      </Tabs>
+        {tabId === 'convert' && (
+          <div className="panel-grid">
+            <StructureToInchiPanel />
+            <InchiToStructurePanel />
+          </div>
+        )}
+        {tabId === 'sdf' && <SdfToInchiPanel />}
+        {tabId === 'tests' && <TestsPanel />}
+        {tabId === 'download' && <DownloadPanel />}
+        {tabId === 'about' && <AboutPanel />}
+      </main>
     </div>
   );
 }

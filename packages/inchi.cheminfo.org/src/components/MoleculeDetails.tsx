@@ -3,7 +3,8 @@ import type { ErrorComponentProps } from 'react-ocl';
 import { MolfileSvgRenderer } from 'react-ocl';
 import type { Molecule } from 'sdf-parser';
 
-import { CopyButton } from './CopyButton.tsx';
+import { CopyableValue } from './CopyableValue.tsx';
+import { EllipsisTooltip, FastTooltip } from './FastTooltip.tsx';
 import type { MoleculeRow, RowStatus } from './MoleculeTable.tsx';
 
 const STATUS_INTENT: Record<RowStatus, 'success' | 'danger' | 'none'> = {
@@ -54,21 +55,21 @@ export function MoleculeDetails({
           }}
         >
           <Tag minimal>#{row.index}</Tag>
-          <span
+          <EllipsisTooltip
+            tag="span"
             className="mono molecule-table-ellipsis"
-            title={row.id}
             style={{ fontWeight: 600 }}
-          >
-            {row.id}
-          </span>
+            value={row.id}
+          />
         </div>
-        <Button
-          icon="cross"
-          variant="minimal"
-          size="small"
-          title="Close details"
-          onClick={onClose}
-        />
+        <FastTooltip content="Close details">
+          <Button
+            icon="cross"
+            variant="minimal"
+            size="small"
+            onClick={onClose}
+          />
+        </FastTooltip>
       </div>
 
       <div className="molecule-detail-structure">
@@ -127,22 +128,27 @@ function DetailField({ label, value }: { label: string; value: string }) {
   return (
     <div className="molecule-detail-field">
       <div className="molecule-detail-field-head">
-        <span className="molecule-detail-field-label" title={label}>
-          {label}
-        </span>
-        {value && <CopyButton value={value} label={label} />}
+        <EllipsisTooltip
+          tag="span"
+          className="molecule-detail-field-label"
+          value={label}
+        />
       </div>
-      <span className="mono molecule-detail-field-value">
-        {value || <span className="muted">—</span>}
-      </span>
+      <CopyableValue
+        value={value}
+        label={label}
+        className="molecule-detail-field-value"
+      />
     </div>
   );
 }
 
 function StructureError({ value }: ErrorComponentProps) {
   return (
-    <span className="muted" style={{ fontSize: 12 }} title={value}>
-      no structure
-    </span>
+    <FastTooltip content={value}>
+      <span className="muted" style={{ fontSize: 12 }}>
+        no structure
+      </span>
+    </FastTooltip>
   );
 }
