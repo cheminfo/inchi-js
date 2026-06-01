@@ -29,12 +29,25 @@ scope.addEventListener(
   },
 );
 
+// Forward at most one progress update per this many milliseconds so a fast
+// run does not flood the main thread with re-renders; the bar still updates
+// ~16×/second, and the final record (done === total) is always sent.
+const PROGRESS_THROTTLE_MS = 60;
+
 async function runJob(payload: SdfInchiWorkerInbound): Promise<void> {
   try {
+    let lastPost = 0;
     const results = await computeInchiBatch(payload.molfiles, {
       chunkSize: 50,
       onProgress: (progress) => {
-        post({ type: 'progress', progress });
+        const now = performance.now();
+        if (
+          progress.done === progress.total ||
+          now - lastPost >= PROGRESS_THROTTLE_MS
+        ) {
+          lastPost = now;
+          post({ type: 'progress', progress });
+        }
       },
     });
     post({ type: 'done', results });

@@ -30,7 +30,7 @@ export interface InchiProgress {
  * @param molfiles - The V2000/V3000 molfile blocks, in SDF order.
  * @param options - Run configuration.
  * @param options.signal - Aborts the run early when triggered.
- * @param options.onProgress - Called every `chunkSize` records.
+ * @param options.onProgress - Called after every record so callers can render a smooth progress bar.
  * @param options.chunkSize - Records processed per event-loop tick. Defaults to `50`.
  * @returns The computations, aligned by index with `molfiles`.
  */
@@ -65,15 +65,19 @@ export async function computeInchiBatch(
     };
     results.push(computation);
     bumpProgress(progress, computation);
+    // Report after every record so the bar fills smoothly; the worker
+    // throttles how often these updates are forwarded to the UI.
+    options.onProgress?.({ ...progress });
     if ((index + 1) % chunkSize === 0) {
-      options.onProgress?.({ ...progress });
       // eslint-disable-next-line no-await-in-loop -- yield to the event loop between chunks
       await new Promise<void>((resolve) => {
         setTimeout(resolve, 0);
       });
     }
   }
-  options.onProgress?.({ ...progress });
+  // The loop above already reports the final state for every non-empty
+  // input; this only covers the empty case.
+  if (molfiles.length === 0) options.onProgress?.({ ...progress });
   return results;
 }
 

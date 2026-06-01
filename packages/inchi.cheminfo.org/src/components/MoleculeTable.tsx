@@ -1,3 +1,4 @@
+import type { Intent } from '@blueprintjs/core';
 import { Tag, Tooltip } from '@blueprintjs/core';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useRef } from 'react';
@@ -5,8 +6,6 @@ import type { ErrorComponentProps } from 'react-ocl';
 import { MolfileSvgRenderer } from 'react-ocl';
 
 import type { InchiStatus } from '../sdf/sdfInchi.ts';
-
-import { CopyButton } from './CopyButton.tsx';
 
 export type RowStatus = InchiStatus | 'pending';
 
@@ -22,9 +21,9 @@ export interface MoleculeRow {
   warning: boolean;
 }
 
-const ROW_HEIGHT = 96;
+const ROW_HEIGHT = 168;
 const GRID_TEMPLATE =
-  '48px 104px minmax(120px, 1fr) minmax(220px, 3fr) 170px 96px';
+  '48px 176px minmax(120px, 1fr) minmax(220px, 3fr) 170px 96px';
 const COLUMNS = ['#', 'Structure', 'ID', 'InChI', 'InChIKey', 'Status'];
 
 const STATUS_INTENT: Record<RowStatus, 'success' | 'danger' | 'none'> = {
@@ -69,6 +68,33 @@ export function MoleculeTable({
     overscan: 8,
   });
 
+  // Selection is the molecule's stable 0-based index, but navigation moves
+  // through the filtered `rows` array — so translate between the two here.
+  function selectArrayIndex(arrayIndex: number) {
+    const row = rows[arrayIndex];
+    if (!row || row.index - 1 === selectedIndex) return;
+    virtualizer.scrollToIndex(arrayIndex);
+    onSelect(row.index - 1);
+  }
+
+  function moveSelection(delta: number) {
+    const currentArrayIndex = rows.findIndex(
+      (row) => row.index - 1 === selectedIndex,
+    );
+    if (currentArrayIndex === -1) {
+      selectArrayIndex(delta > 0 ? 0 : rows.length - 1);
+    } else {
+      selectArrayIndex(currentArrayIndex + delta);
+    }
+  }
+
+  // Clicking a row also focuses the scroll container so the arrow keys work
+  // immediately afterwards, even though the rows themselves are not tab stops.
+  function handleSelect(moleculeIndex: number) {
+    scrollRef.current?.focus({ preventScroll: true });
+    onSelect(moleculeIndex);
+  }
+
   if (rows.length === 0) {
     return (
       <div className="muted" style={{ fontSize: 13, fontStyle: 'italic' }}>
@@ -93,7 +119,40 @@ export function MoleculeTable({
           </div>
         ))}
       </div>
-      <div ref={scrollRef} style={{ overflow: 'auto', maxHeight: 620 }}>
+      <div
+        ref={scrollRef}
+        role="listbox"
+        aria-label="Molecules"
+        aria-activedescendant={
+          selectedIndex === null
+            ? undefined
+            : `molecule-table-row-${selectedIndex + 1}`
+        }
+        tabIndex={0}
+        onKeyDown={(event) => {
+          switch (event.key) {
+            case 'ArrowDown':
+              event.preventDefault();
+              moveSelection(1);
+              break;
+            case 'ArrowUp':
+              event.preventDefault();
+              moveSelection(-1);
+              break;
+            case 'Home':
+              event.preventDefault();
+              selectArrayIndex(0);
+              break;
+            case 'End':
+              event.preventDefault();
+              selectArrayIndex(rows.length - 1);
+              break;
+            default:
+              break;
+          }
+        }}
+        style={{ overflow: 'auto', maxHeight: 620, outline: 'none' }}
+      >
         <div
           style={{ height: virtualizer.getTotalSize(), position: 'relative' }}
         >
@@ -108,7 +167,7 @@ export function MoleculeTable({
                 // Selection is tracked by the molecule's stable 0-based
                 // index (not the array position) so it survives filtering.
                 selected={row.index - 1 === selectedIndex}
-                onSelect={onSelect}
+                onSelect={handleSelect}
               />
             );
           })}
@@ -133,59 +192,30 @@ function MoleculeTableRow({
   const className = `molecule-table-row${selected ? ' is-selected' : ''}${
     row.warning ? ' has-warning' : ''
   }`;
-  const message = row.message || (row.warning ? 'C library warning' : '');
   return (
-    <Tooltip
-      content={message}
-      disabled={!message}
-      placement="top"
-      compact
-      hoverOpenDelay={150}
-      popoverClassName="molecule-table-tooltip"
-      renderTarget={(targetProps) => {
-        const {
-          // eslint-disable-next-line no-unused-vars -- pulled out so it is not spread onto the DOM node
-          isOpen,
-          ref,
-          className: targetClassName,
-          ...rest
-        } = targetProps;
-        return (
-          <div
-            {...rest}
-            ref={ref}
-            className={
-              targetClassName ? `${className} ${targetClassName}` : className
-            }
-            role="button"
-            tabIndex={0}
-            aria-pressed={selected}
-            style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: ROW_HEIGHT,
-              transform: `translateY(${top}px)`,
-              gridTemplateColumns: GRID_TEMPLATE,
-            }}
-            onClick={() => onSelect(moleculeIndex)}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' || event.key === ' ') {
-                event.preventDefault();
-                onSelect(moleculeIndex);
-              }
-            }}
-          >
-            <RowCells row={row} />
-          </div>
-        );
+    <div
+      id={`molecule-table-row-${row.index}`}
+      className={className}
+      role="option"
+      aria-selected={selected}
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: ROW_HEIGHT,
+        transform: `translateY(${top}px)`,
+        gridTemplateColumns: GRID_TEMPLATE,
       }}
-    />
+      onClick={() => onSelect(moleculeIndex)}
+    >
+      <RowCells row={row} />
+    </div>
   );
 }
 
 function RowCells({ row }: { row: MoleculeRow }) {
+  const message = row.message || (row.warning ? 'C library warning' : '');
   return (
     <>
       <div className="muted" style={{ fontSize: 12 }}>
@@ -194,8 +224,8 @@ function RowCells({ row }: { row: MoleculeRow }) {
       <div className="molecule-table-structure">
         <MolfileSvgRenderer
           molfile={row.molfile}
-          width={88}
-          height={88}
+          width={160}
+          height={160}
           autoCrop
           ErrorComponent={StructureError}
         />
@@ -203,37 +233,67 @@ function RowCells({ row }: { row: MoleculeRow }) {
       <div className="mono molecule-table-ellipsis" title={row.id}>
         {row.id}
       </div>
-      <ValueCell value={row.inchi} label="InChI" />
-      <ValueCell value={row.inchikey} label="InChIKey" />
+      <ValueCell value={row.inchi} />
+      <ValueCell value={row.inchikey} />
       <div>
-        <Tag minimal intent={STATUS_INTENT[row.status]}>
-          {STATUS_LABEL[row.status]}
-        </Tag>
+        <StatusTag
+          intent={STATUS_INTENT[row.status]}
+          label={STATUS_LABEL[row.status]}
+          message={row.status === 'error' ? message : undefined}
+        />
         {row.warning && (
-          <Tag minimal intent="warning" style={{ marginLeft: 4 }}>
-            warn
-          </Tag>
+          <StatusTag
+            intent="warning"
+            label="warn"
+            message={message}
+            marginLeft={4}
+          />
         )}
       </div>
     </>
   );
 }
 
-function ValueCell({ value, label }: { value: string; label: string }) {
+function StatusTag({
+  intent,
+  label,
+  message,
+  marginLeft,
+}: {
+  intent: Intent;
+  label: string;
+  message?: string;
+  marginLeft?: number;
+}) {
+  const tag = (
+    <Tag
+      minimal
+      intent={intent}
+      style={marginLeft ? { marginLeft } : undefined}
+    >
+      {label}
+    </Tag>
+  );
+  if (!message) return tag;
+  return (
+    <Tooltip
+      content={message}
+      placement="top"
+      compact
+      hoverOpenDelay={150}
+      popoverClassName="molecule-table-tooltip"
+    >
+      {tag}
+    </Tooltip>
+  );
+}
+
+function ValueCell({ value }: { value: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
       <span className="mono molecule-table-ellipsis" title={value}>
         {value || <span className="muted">—</span>}
       </span>
-      {value && (
-        <span
-          role="presentation"
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
-          <CopyButton value={value} label={label} />
-        </span>
-      )}
     </div>
   );
 }

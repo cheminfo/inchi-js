@@ -15,10 +15,15 @@ test('drag-and-dropping an SDF file parses every structure', async ({
 
   const dropzone = page.getByTestId('sdf-dropzone');
   await expect(dropzone).toBeVisible();
-  // The empty state offers a click-to-browse button.
+  // The empty state prompts to drop a file — the whole box is the target,
+  // with no separate "select" button (the hidden <input type=file> is exposed
+  // with a button role, so we assert on the absence of the named button).
+  await expect(
+    dropzone.getByText('Drop an SDF file here', { exact: true }),
+  ).toBeVisible();
   await expect(
     dropzone.getByRole('button', { name: 'Select file…' }),
-  ).toBeVisible();
+  ).toHaveCount(0);
 
   // Simulate a real OS file drop onto the react-science DropZone. A single
   // `drop` event with a populated DataTransfer is what react-dropzone reacts
@@ -41,11 +46,6 @@ test('drag-and-dropping an SDF file parses every structure', async ({
   await expect(
     dropzone.getByText('molecules.sdf', { exact: true }),
   ).toBeVisible();
-
-  // Once a file is loaded, the redundant empty-state button is gone.
-  await expect(
-    dropzone.getByRole('button', { name: 'Select file…' }),
-  ).toHaveCount(0);
 
   // Every parsed structure gets one row in the table.
   await expect(page.locator('.molecule-table-row')).toHaveCount(2);

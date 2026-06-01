@@ -56,7 +56,18 @@ function vendorTestDataPlugin(): Plugin {
         const sub = TEST_DATASETS[rawName];
         if (sub === undefined) return next();
         const filepath = join(repoRoot, sub);
-        if (!existsSync(filepath)) return next();
+        if (!existsSync(filepath)) {
+          // Fail loudly instead of falling through to the SPA fallback:
+          // returning index.html (HTTP 200) here makes the client try to
+          // gunzip HTML and report a cryptic "incorrect header check".
+          res.statusCode = 404;
+          res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+          res.end(
+            `Test dataset "${rawName}" not found at ${sub}. ` +
+              'Run "git submodule update --init --recursive" to fetch the vendored IUPAC fixtures.',
+          );
+          return;
+        }
         const buf = readFileSync(filepath);
         res.setHeader('Content-Type', 'application/octet-stream');
         res.setHeader('Cache-Control', 'max-age=3600');

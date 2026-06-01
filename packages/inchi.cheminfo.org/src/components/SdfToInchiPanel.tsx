@@ -1,4 +1,4 @@
-import { Button, Icon, ProgressBar } from '@blueprintjs/core';
+import { Button, Colors, Icon, ProgressBar } from '@blueprintjs/core';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DropZoneContainer } from 'react-science/ui';
 import type { Molecule } from 'sdf-parser';
@@ -150,7 +150,15 @@ export function SdfToInchiPanel() {
 
     setRunning(true);
     setError(null);
-    setProgress(null);
+    // Show the bar immediately (indeterminate, see `initializing` below) so
+    // there is feedback during the one-time WASM load before the first result.
+    setProgress({
+      done: 0,
+      total: molecules.length,
+      ok: 0,
+      error: 0,
+      warning: 0,
+    });
     const payload: SdfInchiWorkerInbound = {
       type: 'run',
       molfiles: molecules.map((molecule) => molecule.molfile),
@@ -177,6 +185,9 @@ export function SdfToInchiPanel() {
   );
   const fraction =
     progress && progress.total > 0 ? progress.done / progress.total : 0;
+  // Before the first result arrives the WASM engine is still loading, so the
+  // fraction is meaningless — show an animated indeterminate bar instead.
+  const initializing = running && progress !== null && progress.done === 0;
   const selectedRow =
     selectedIndex === null ? null : (rows[selectedIndex] ?? null);
   const selectedMolecule =
@@ -204,39 +215,49 @@ export function SdfToInchiPanel() {
           disabled={parsing || running}
           multiple={false}
           noClick={false}
-          emptyIcon="import"
-          emptyTitle="Drop an SDF file here"
-          emptyDescription="Supports .sdf, .sdf.gz and .mol — or click to browse."
-          emptyButtonText="Select file…"
-          emptyButtonIcon="folder-open"
         >
-          {molecules.length > 0 ? (
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 6,
-                height: '100%',
-                padding: 16,
-                textAlign: 'center',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Icon icon="document" size={24} intent="primary" />
-              <div
-                title={fileName ?? undefined}
-                className="mono molecule-table-ellipsis"
-                style={{ fontWeight: 600, maxWidth: '90%' }}
-              >
-                {fileName ?? 'SDF loaded'}
-              </div>
-              <div className="muted" style={{ fontSize: 13 }}>
-                {molecules.length.toLocaleString()} structures loaded — drop or
-                click to replace
-              </div>
-            </div>
-          ) : null}
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              height: '100%',
+              padding: 16,
+              boxSizing: 'border-box',
+              border: `5px dashed ${Colors.GRAY3}`,
+              cursor: parsing || running ? 'default' : 'pointer',
+              textAlign: 'center',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {molecules.length > 0 ? (
+              <>
+                <Icon icon="document" size={24} intent="primary" />
+                <div
+                  title={fileName ?? undefined}
+                  className="mono molecule-table-ellipsis"
+                  style={{ fontWeight: 600, maxWidth: '90%' }}
+                >
+                  {fileName ?? 'SDF loaded'}
+                </div>
+                <div className="muted" style={{ fontSize: 13 }}>
+                  {molecules.length.toLocaleString()} structures loaded — drop
+                  or click to replace
+                </div>
+              </>
+            ) : (
+              <>
+                <Icon icon="import" size={32} />
+                <div style={{ fontWeight: 600, fontSize: 16 }}>
+                  Drop an SDF file here
+                </div>
+                <div className="muted" style={{ fontSize: 13 }}>
+                  Supports .sdf, .sdf.gz and .mol — or click to browse.
+                </div>
+              </>
+            )}
+          </div>
         </DropZoneContainer>
       </div>
 
@@ -274,15 +295,21 @@ export function SdfToInchiPanel() {
       {progress && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           <span className="muted" style={{ fontSize: 12 }}>
-            {progress.done.toLocaleString()} / {progress.total.toLocaleString()}{' '}
-            structures · ok {progress.ok} · errors {progress.error} · warnings{' '}
-            {progress.warning}
+            {initializing ? (
+              'Preparing the InChI engine…'
+            ) : (
+              <>
+                {progress.done.toLocaleString()} /{' '}
+                {progress.total.toLocaleString()} structures · ok {progress.ok}{' '}
+                · errors {progress.error} · warnings {progress.warning}
+              </>
+            )}
           </span>
           <ProgressBar
             animate={running}
             stripes={running}
             intent={running ? 'primary' : 'success'}
-            value={fraction}
+            value={initializing ? undefined : fraction}
           />
         </div>
       )}

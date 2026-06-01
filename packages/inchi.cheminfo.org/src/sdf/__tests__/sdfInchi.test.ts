@@ -36,6 +36,22 @@ test('computeInchiBatch reports progress for every record', async () => {
   expect(seen.at(-1)).toBe(1);
 });
 
+test('computeInchiBatch reports progress after each record within a chunk', async () => {
+  const molfiles = [
+    Molecule.fromSmiles('CCO').toMolfile(),
+    Molecule.fromSmiles('CC(=O)O').toMolfile(),
+    Molecule.fromSmiles('CCC').toMolfile(),
+  ];
+  const seen: number[] = [];
+
+  await computeInchiBatch(molfiles, {
+    chunkSize: 50,
+    onProgress: (progress) => seen.push(progress.done),
+  });
+
+  expect(seen).toStrictEqual([1, 2, 3]);
+});
+
 test('parseSdfFile parses an uploaded SDF and keeps data fields as strings', async () => {
   const molfile = Molecule.fromSmiles('CCO').toMolfile();
   const sdf = `${molfile}\n>  <Name>\nethanol\n\n$$$$\n`;

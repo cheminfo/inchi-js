@@ -2,6 +2,9 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
+    // Unit tests live under `src/`; the Playwright specs in `e2e/` have their
+    // own runner (`npm run test-e2e`) and must not be collected by vitest.
+    include: ['src/**/*.{test,spec}.{ts,tsx}'],
     coverage: {
       include: ['src/**/*.{ts,tsx}'],
       provider: 'v8',

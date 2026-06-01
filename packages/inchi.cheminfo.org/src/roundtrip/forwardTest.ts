@@ -17,6 +17,8 @@ export type ForwardStatus = 'ok' | 'inchi-error';
 
 export interface ForwardResult {
   molfileId: string;
+  /** The raw V2000/V3000 molfile, kept so the UI can draw the structure. */
+  molfile: string;
   status: ForwardStatus;
   inchi: string;
   inchikey: string;
@@ -50,6 +52,7 @@ export async function forwardOne(
   if (!inchiResult.inchi) {
     return {
       molfileId,
+      molfile,
       status: 'inchi-error',
       inchi: '',
       inchikey: '',
@@ -60,6 +63,7 @@ export async function forwardOne(
   const keyResult = await inchikeyFromInchi(inchiResult.inchi);
   return {
     molfileId,
+    molfile,
     status: 'ok',
     inchi: inchiResult.inchi,
     inchikey: keyResult.inchikey,

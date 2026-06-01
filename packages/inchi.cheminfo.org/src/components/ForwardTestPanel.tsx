@@ -2,7 +2,6 @@ import {
   Button,
   Callout,
   HTMLSelect,
-  HTMLTable,
   Icon,
   ProgressBar,
   Tag,
@@ -21,16 +20,15 @@ import type {
   ForwardWorkerOutbound,
 } from '../roundtrip/forwardWorker.ts';
 
+import { MoleculeDetails } from './MoleculeDetails.tsx';
+import type { MoleculeRow, RowStatus } from './MoleculeTable.tsx';
+import { MoleculeTable } from './MoleculeTable.tsx';
+
 type Filter = 'all' | 'failed' | 'warning';
 
-const STATUS_LABEL: Record<ForwardStatus, string> = {
-  ok: 'OK',
-  'inchi-error': 'InChI error',
-};
-
-const STATUS_INTENT: Record<ForwardStatus, 'success' | 'danger'> = {
-  ok: 'success',
-  'inchi-error': 'danger',
+const FORWARD_STATUS_TO_ROW: Record<ForwardStatus, RowStatus> = {
+  ok: 'ok',
+  'inchi-error': 'error',
 };
 
 function inchiOptionsFor(dataset: TestDataset): string {
@@ -56,6 +54,7 @@ export function ForwardTestPanel() {
   const [progress, setProgress] = useState<ForwardProgress | null>(null);
   const [results, setResults] = useState<ForwardResult[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const workerRef = useRef<Worker | null>(null);
 
   const selectedDataset = useMemo(
@@ -123,6 +122,7 @@ export function ForwardTestPanel() {
     setError(null);
     setResults(null);
     setProgress(null);
+    setSelectedIndex(null);
 
     const url = `${baseUrl}test-data/${selectedDataset.filename}`;
     const payload: ForwardWorkerInbound = {
@@ -141,10 +141,16 @@ export function ForwardTestPanel() {
   }, []);
 
   const stats = useMemo(() => computeStats(results), [results]);
-  const filtered = useMemo(
-    () => filterResults(results, filter),
-    [results, filter],
+  const rows = useMemo(() => buildForwardRows(results), [results]);
+  const filteredRows = useMemo(
+    () => filterForwardRows(rows, filter),
+    [rows, filter],
   );
+  // `selectedIndex` is the molecule's stable 0-based index (`row.index - 1`),
+  // and `buildForwardRows` keeps every row at `rows[i].index === i + 1`, so
+  // the selected row survives filtering even when hidden from the table.
+  const selectedRow =
+    selectedIndex === null ? null : (rows[selectedIndex] ?? null);
 
   return (
     <div className="panel" style={{ gap: 16 }}>
@@ -220,11 +226,79 @@ export function ForwardTestPanel() {
         <>
           <StatsRow stats={stats} />
           <FilterRow filter={filter} setFilter={setFilter} stats={stats} />
-          <ResultsTable rows={filtered} />
+          {filteredRows.length === 0 ? (
+            <div
+              className="muted"
+              style={{ fontSize: 13, fontStyle: 'italic' }}
+            >
+              No structures match the current filter.
+            </div>
+          ) : (
+            <div className={selectedRow ? 'sdf-split' : undefined}>
+              <MoleculeTable
+                rows={filteredRows}
+                selectedIndex={selectedIndex}
+                onSelect={(index) =>
+                  setSelectedIndex((current) =>
+                    current === index ? null : index,
+                  )
+                }
+              />
+              {selectedRow && (
+                <MoleculeDetails
+                  molecule={{ molfile: selectedRow.molfile }}
+                  row={selectedRow}
+                  onClose={() => setSelectedIndex(null)}
+                />
+              )}
+            </div>
+          )}
         </>
       )}
     </div>
   );
+}
+
+/**
+ * Map the forward-test results onto the shared {@link MoleculeRow} shape so
+ * they can be shown in the virtualized {@link MoleculeTable}. The 1-based
+ * `index` mirrors the SDF order, so `rows[i].index === i + 1`.
+ * @param results - The forward-test results, or `null` before a run.
+ * @returns One row per result, in SDF order.
+ */
+function buildForwardRows(results: ForwardResult[] | null): MoleculeRow[] {
+  if (!results) return [];
+  return results.map((result, index) => ({
+    index: index + 1,
+    id: result.molfileId,
+    molfile: result.molfile,
+    inchi: result.inchi,
+    inchikey: result.inchikey,
+    status: FORWARD_STATUS_TO_ROW[result.status],
+    message: result.message,
+    warning: result.warning,
+  }));
+}
+
+/**
+ * Keep only the rows matching the active filter. `failed` keeps every
+ * non-`ok` row, `warning` keeps rows the C library flagged, `all` keeps
+ * everything.
+ * @param rows - Every row, in SDF order.
+ * @param filter - The active filter.
+ * @returns The rows to display.
+ */
+function filterForwardRows(rows: MoleculeRow[], filter: Filter): MoleculeRow[] {
+  switch (filter) {
+    case 'failed':
+      return rows.filter((row) => row.status !== 'ok');
+    case 'warning':
+      return rows.filter((row) => row.warning);
+    case 'all':
+      return rows;
+    default:
+      return rows;
+  }
 }
 
 interface Stats {
@@ -247,23 +321,6 @@ function computeStats(results: ForwardResult[] | null): Stats {
     if (result.warning) warning += 1;
   }
   return { total: results.length, ok, failed, warning };
-}
-
-function filterResults(
-  results: ForwardResult[] | null,
-  filter: Filter,
-): ForwardResult[] {
-  if (!results) return [];
-  switch (filter) {
-    case 'failed':
-      return results.filter((row) => row.status !== 'ok');
-    case 'warning':
-      return results.filter((row) => row.warning);
-    case 'all':
-      return results;
-    default:
-      return results;
-  }
 }
 
 function ProgressRow({
@@ -368,86 +425,6 @@ function FilterRow({
           </Tag>
         );
       })}
-    </div>
-  );
-}
-
-function ResultsTable({ rows }: { rows: ForwardResult[] }) {
-  if (rows.length === 0) {
-    return (
-      <div className="muted" style={{ fontSize: 13, fontStyle: 'italic' }}>
-        No structures match the current filter.
-      </div>
-    );
-  }
-  const visible = rows.slice(0, 500);
-  return (
-    <div style={{ overflow: 'auto', maxHeight: 600 }}>
-      <HTMLTable bordered compact striped style={{ width: '100%' }}>
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>ID</th>
-            <th>InChI</th>
-            <th>InChIKey</th>
-            <th>Message</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visible.map((row) => (
-            <tr key={row.molfileId}>
-              <td>
-                <Tag minimal intent={STATUS_INTENT[row.status]}>
-                  {STATUS_LABEL[row.status]}
-                </Tag>
-                {row.warning && (
-                  <Tag
-                    minimal
-                    intent="warning"
-                    style={{ marginLeft: 4 }}
-                    title="The C library returned a non-fatal warning"
-                  >
-                    warn
-                  </Tag>
-                )}
-              </td>
-              <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                {row.molfileId}
-              </td>
-              <td
-                className="mono"
-                style={{
-                  maxWidth: 280,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-                title={row.inchi}
-              >
-                {row.inchi || <span className="muted">—</span>}
-              </td>
-              <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                {row.inchikey || <span className="muted">—</span>}
-              </td>
-              <td style={{ fontSize: 12 }}>
-                {row.message ? (
-                  <span style={{ color: '#8e292c' }}>{row.message}</span>
-                ) : (
-                  <span className="muted">—</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </HTMLTable>
-      {rows.length > visible.length && (
-        <div
-          className="muted"
-          style={{ fontSize: 12, marginTop: 8, fontStyle: 'italic' }}
-        >
-          Showing the first {visible.length.toLocaleString()} of{' '}
-          {rows.length.toLocaleString()} matching rows.
-        </div>
-      )}
     </div>
   );
 }
