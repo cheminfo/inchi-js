@@ -1,6 +1,9 @@
 CHANGELOG.md
 coverage
+dist
+lib
 node_modules
+package-lock.json
 vendor
 packages/inchi-js/src/wasm/data.ts
 packages/inchi-js/src/wasm/glue.ts

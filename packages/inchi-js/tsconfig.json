@@ -6,6 +6,6 @@
     "lib": ["ESNext", "DOM"],
     "types": ["node"]
   },
-  "include": ["src", "benchmark"],
+  "include": ["src", "benchmark", "vitest*.ts"],
   "exclude": ["build/out", "lib", "coverage"]
 }

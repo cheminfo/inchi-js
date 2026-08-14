@@ -1,4 +1,5 @@
 {
+  "packages/inchi-api": "1.0.0",
   "packages/inchi-js": "0.2.0",
   "packages/inchi.cheminfo.org": "1.0.0",
   ".": "1.0.0"

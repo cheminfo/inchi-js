@@ -6,6 +6,11 @@
       "tag-separator": "-",
       "include-component-in-tag": true
     },
+    "packages/inchi-api": {
+      "package-name": "inchi-api",
+      "tag-separator": "-",
+      "include-component-in-tag": true
+    },
     "packages/inchi.cheminfo.org": {
       "package-name": "inchi.cheminfo.org",
       "tag-separator": "-",
