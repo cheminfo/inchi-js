@@ -104,7 +104,9 @@
 
   console.log('=== Case A: 3-methylcyclohexan-1-one (chiral atom = 1) ===');
   report('A', buildCaseA, 1);
-  console.log('=== Case B: 4-(2-buten-1-ylidene)-1-methylcyclohexane (chiral atom = 7) ===');
+  console.log(
+    '=== Case B: 4-(2-buten-1-ylidene)-1-methylcyclohexane (chiral atom = 7) ===',
+  );
   report('B', buildCaseB, 7);
 
   console.log(

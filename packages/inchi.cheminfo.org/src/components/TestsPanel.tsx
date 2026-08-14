@@ -1,16 +1,10 @@
 import { Tab, Tabs } from '@blueprintjs/core';
-import { useCallback, useEffect, useState } from 'react';
+import { useSignals } from '@preact/signals-react/runtime';
+
+import { selectTestsTab, state } from '../state/index.ts';
 
 import { ForwardTestPanel } from './ForwardTestPanel.tsx';
 import { RoundtripPanel } from './RoundtripPanel.tsx';
-
-type TestId = 'forward' | 'roundtrip';
-
-function readInitialTest(): TestId {
-  const raw = globalThis.location.hash.replace(/^#\/?/, '');
-  if (raw === 'tests/roundtrip') return 'roundtrip';
-  return 'forward';
-}
 
 /**
  * "Tests" tab — bundles two complementary test categories against the
@@ -26,24 +20,8 @@ function readInitialTest(): TestId {
  * @returns The Tests tab JSX.
  */
 export function TestsPanel() {
-  const [testId, setTestId] = useState<TestId>(() => readInitialTest());
-
-  useEffect(() => {
-    const onHashChange = () => {
-      const raw = globalThis.location.hash.replace(/^#\/?/, '');
-      if (raw.startsWith('tests/')) {
-        setTestId(raw === 'tests/roundtrip' ? 'roundtrip' : 'forward');
-      }
-    };
-    globalThis.addEventListener('hashchange', onHashChange);
-    return () => globalThis.removeEventListener('hashchange', onHashChange);
-  }, []);
-
-  const handleChange = useCallback((next: string | number) => {
-    const nextTest = next === 'roundtrip' ? 'roundtrip' : 'forward';
-    setTestId(nextTest);
-    globalThis.history.replaceState(null, '', `#/tests/${nextTest}`);
-  }, []);
+  useSignals();
+  const testId = state.view.testsTab.value;
 
   return (
     <div style={{ marginTop: 8 }}>
@@ -51,7 +29,7 @@ export function TestsPanel() {
         id="tests-tabs"
         size="medium"
         selectedTabId={testId}
-        onChange={handleChange}
+        onChange={selectTestsTab}
         renderActiveTabPanelOnly
       >
         <Tab

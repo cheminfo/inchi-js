@@ -1,13 +1,12 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import react from '@vitejs/plugin-react';
 import type { Plugin } from 'vite';
 import { defineConfig } from 'vite';
 
-const here = dirname(fileURLToPath(import.meta.url));
-const repoRoot = join(here, '..', '..');
+const repoRoot = join(import.meta.dirname, '..', '..');
 const inchiJsDir = join(repoRoot, 'packages', 'inchi-js');
 const inchiJsPkg = JSON.parse(
   readFileSync(join(inchiJsDir, 'package.json'), 'utf8'),
@@ -109,17 +108,14 @@ function downloadPlugin(): Plugin {
         res.setHeader('Cache-Control', 'max-age=300');
         res.end(buf);
       });
-      server.middlewares.use(
-        '/embed-example.html',
-        (_req, res, next) => {
-          try {
-            res.setHeader('Content-Type', 'text/html; charset=utf-8');
-            res.end(embedExampleHtml('./lib/inchi-js.min.js'));
-          } catch {
-            next();
-          }
-        },
-      );
+      server.middlewares.use('/embed-example.html', (_req, res, next) => {
+        try {
+          res.setHeader('Content-Type', 'text/html; charset=utf-8');
+          res.end(embedExampleHtml('./lib/inchi-js.min.js'));
+        } catch {
+          next();
+        }
+      });
     },
     generateBundle() {
       for (const [name, sub] of Object.entries(DOWNLOAD_ASSETS)) {
@@ -290,6 +286,16 @@ export default defineConfig({
   },
   server: {
     host: true,
-    port: 5173,
+    // 10524 sits next to the API's 10523, both derived from the project's
+    // creation date, so this project never collides with another Vite app.
+    port: 10524,
+    strictPort: true,
+    // In production one Fastify process serves the site, the API and the
+    // documentation on the same origin; in dev the API answers next door.
+    proxy: {
+      '/v1': 'http://localhost:10523',
+      '/health': 'http://localhost:10523',
+      '/documentation': 'http://localhost:10523',
+    },
   },
 });

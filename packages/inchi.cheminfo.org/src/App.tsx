@@ -1,93 +1,52 @@
-import { Tab, Tabs } from '@blueprintjs/core';
+import { Button, Tab, Tabs } from '@blueprintjs/core';
+import { useSignals } from '@preact/signals-react/runtime';
 import { INCHI_C_VERSION } from 'inchi-js';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 
-import { AboutPanel } from './components/AboutPanel.tsx';
-import { DownloadPanel } from './components/DownloadPanel.tsx';
 import { InchiToStructurePanel } from './components/InchiToStructurePanel.tsx';
+import { MoreMenu } from './components/MoreMenu.tsx';
+import { MorePanel } from './components/MorePanel.tsx';
+import { ShareDialog } from './components/ShareDialog.tsx';
 import { StructureToInchiPanel } from './components/StructureToInchiPanel.tsx';
-import { TestsPanel } from './components/TestsPanel.tsx';
-
-type TabId = 'convert' | 'tests' | 'download' | 'about';
-
-const VALID_TABS = new Set<TabId>(['convert', 'tests', 'download', 'about']);
-
-function readInitialTab(): TabId {
-  const raw = globalThis.location.hash.replace(/^#\/?/, '').split('/')[0];
-  if (VALID_TABS.has(raw as TabId)) return raw as TabId;
-  return 'convert';
-}
+import { isMoreTab } from './components/moreTabs.ts';
+import { FileConvertPanel } from './fileConvert/FileConvertPanel.tsx';
+import { Cheatsheet } from './guide/pages/Cheatsheet.tsx';
+import { Exercises } from './guide/pages/Exercises.tsx';
+import { Tutorial } from './guide/pages/Tutorial.tsx';
+import { selectTab, state } from './state/index.ts';
+import { isEmbedded, isHidden } from './state/shareConfig.ts';
 
 /**
- * Root of the playground. Four tabs:
+ * Root of the playground. Five tabs plus a More dropdown:
  *
  *   • Convert — structure ↔ InChI live conversion.
- *   • Tests — Molfile → InChI (must pass) and full
- *     Molfile → InChI → Molfile → InChI roundtrip (InChI strings must
- *     match) against the vendored IUPAC test SDFs.
- *   • Download — grab the prebuilt single-file ESM bundle and see
- *     how to embed it in plain HTML, in a bundler, or via npm.
- *   • About — project background, attribution, and academic
- *     citations for InChI and OpenChemLib.
+ *   • Batch convert — append InChI and InChIKey columns to a CSV, TSV,
+ *     XLSX, or SDF, entirely in the browser.
+ *   • Tutorial — how an InChI is derived by hand, step by step.
+ *   • Exercises — derive a layer yourself, checked against the engine.
+ *   • Cheatsheet — a printable reference of the layers and their syntax.
+ *   • More — a dropdown onto the IUPAC test suites, the bundle
+ *     download, and the project background.
+ *
+ * Framed in another site (`?embed=1`), the header is left out so the page
+ * gets the whole frame, and `?hide=tabs` drops the menu with it.
  * @returns The application root.
  */
 export function App() {
-  const [tabId, setTabId] = useState<TabId>(() => readInitialTab());
-
-  useEffect(() => {
-    const onHashChange = () => setTabId(readInitialTab());
-    globalThis.addEventListener('hashchange', onHashChange);
-    return () => globalThis.removeEventListener('hashchange', onHashChange);
-  }, []);
-
-  const handleTabChange = useCallback((next: string | number) => {
-    const candidate = String(next) as TabId;
-    const nextTab = VALID_TABS.has(candidate) ? candidate : 'convert';
-    setTabId(nextTab);
-    globalThis.history.replaceState(null, '', `#/${nextTab}`);
-  }, []);
+  useSignals();
+  const tabId = state.view.tab.value;
+  const embedded = isEmbedded();
 
   return (
-    <div className="app-shell">
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'baseline',
-          marginBottom: 16,
-          flexWrap: 'wrap',
-          gap: 12,
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: 22 }}>
-          inchi.cheminfo.org — InChI playground
-        </h1>
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-          <a
-            href="https://github.com/IUPAC-InChI/InChI"
-            target="_blank"
-            rel="noreferrer"
-            style={{ fontSize: 13 }}
-            title="Version of the IUPAC InChI C library compiled to the embedded WASM"
-          >
-            IUPAC InChI v{INCHI_C_VERSION}
-          </a>
-          <a
-            href="https://github.com/cheminfo/inchi"
-            target="_blank"
-            rel="noreferrer"
-            style={{ fontSize: 13 }}
-          >
-            source
-          </a>
-        </div>
-      </div>
+    <div className={embedded ? 'app-shell app-shell-embedded' : 'app-shell'}>
+      {!embedded && <AppHeader />}
 
       <Tabs
         id="root-tabs"
         size="large"
+        className={isHidden('tabs') ? 'tab-list-hidden' : undefined}
         selectedTabId={tabId}
-        onChange={handleTabChange}
+        onChange={selectTab}
         renderActiveTabPanelOnly
       >
         <Tab
@@ -95,31 +54,103 @@ export function App() {
           title="Convert"
           panel={
             <div className="panel-grid" style={{ marginTop: 12 }}>
-              <StructureToInchiPanel />
-              <InchiToStructurePanel />
+              {!isHidden('structure') && <StructureToInchiPanel />}
+              {!isHidden('inchi') && <InchiToStructurePanel />}
             </div>
           }
         />
-        <Tab id="tests" title="Tests" panel={<TestsPanel />} />
+        <Tab id="batch" title="Batch convert" panel={<FileConvertPanel />} />
         <Tab
-          id="download"
-          title="Download"
+          id="tutorial"
+          title="Tutorial"
           panel={
             <div style={{ marginTop: 12 }}>
-              <DownloadPanel />
+              <Tutorial />
             </div>
           }
         />
         <Tab
-          id="about"
-          title="About"
+          id="exercises"
+          title="Exercises"
           panel={
             <div style={{ marginTop: 12 }}>
-              <AboutPanel />
+              <Exercises />
             </div>
           }
         />
+        <Tab
+          id="cheatsheet"
+          title="Cheatsheet"
+          panel={
+            <div style={{ marginTop: 12 }}>
+              <Cheatsheet />
+            </div>
+          }
+        />
+        <MoreMenu selected={tabId} onSelect={selectTab} />
       </Tabs>
+
+      {isMoreTab(tabId) && <MorePanel tab={tabId} />}
+    </div>
+  );
+}
+
+/**
+ * The title bar: what the site is, where the engine and the API live, and the
+ * dialog that builds a link — or an iframe — onto the page on show.
+ * @returns The header.
+ */
+function AppHeader() {
+  const [sharing, setSharing] = useState(false);
+
+  return (
+    <div className="app-header">
+      <h1 className="app-title">
+        <img className="app-logo" src="/logo.svg" alt="" />
+        <span className="app-title-site">inchi.cheminfo.org</span> — InChI
+        playground
+      </h1>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        {!isHidden('links') && (
+          <>
+            <a
+              href="https://github.com/IUPAC-InChI/InChI"
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 13 }}
+              title="Version of the IUPAC InChI C library compiled to the embedded WASM"
+            >
+              IUPAC InChI v{INCHI_C_VERSION}
+            </a>
+            <a
+              href="/documentation"
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 13 }}
+              title="HTTP API: convert a structure, or a whole CSV / TSV / XLSX / SDF file, to InChI and InChIKey"
+            >
+              API
+            </a>
+            <a
+              href="https://github.com/cheminfo/inchi"
+              target="_blank"
+              rel="noreferrer"
+              style={{ fontSize: 13 }}
+            >
+              source
+            </a>
+          </>
+        )}
+        <Button
+          size="small"
+          icon="share"
+          title="Share a link to this page, or frame it in your own site"
+          onClick={() => setSharing(true)}
+        >
+          Share
+        </Button>
+      </div>
+      {sharing && <ShareDialog isOpen onClose={() => setSharing(false)} />}
     </div>
   );
 }

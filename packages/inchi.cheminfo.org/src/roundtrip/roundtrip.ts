@@ -1,7 +1,8 @@
 import { inchiFromMolfile, molfileFromInchi } from 'inchi-js';
 import type { IteratorMolecule } from 'sdf-parser';
 
-import { getMolfileId } from './sdfParsing.ts';
+import type { RunProgress } from './runOverSdf.ts';
+import { runOverSdf } from './runOverSdf.ts';
 
 /**
  * Outcome of a single Molfile → InChI → Molfile → InChI round-trip:
@@ -17,10 +18,7 @@ import { getMolfileId } from './sdfParsing.ts';
  *   could not even try a second pass.
  */
 export type RoundtripStatus =
-  | 'ok'
-  | 'mismatch'
-  | 'inchi-error'
-  | 'molfile-error';
+  'ok' | 'mismatch' | 'inchi-error' | 'molfile-error';
 
 export interface RoundtripResult {
   molfileId: string;
@@ -96,9 +94,7 @@ export async function roundtripOne(
   };
 }
 
-export interface RoundtripProgress {
-  done: number;
-  total: number;
+export interface RoundtripProgress extends RunProgress {
   ok: number;
   mismatch: number;
   inchiError: number;
@@ -135,47 +131,27 @@ export async function roundtripAll(
     chunkSize?: number;
   } = {},
 ): Promise<RoundtripResult[]> {
-  const chunkSize = options.chunkSize ?? 25;
-  const results: RoundtripResult[] = [];
-  const stats: RoundtripProgress = {
-    done: 0,
-    total: options.approxTotal ?? 0,
-    ok: 0,
-    mismatch: 0,
-    inchiError: 0,
-    molfileError: 0,
-  };
-
-  let index = 0;
-  for await (const molecule of molecules) {
-    if (options.signal?.aborted) throw new Error('aborted');
-    const result = await roundtripOne(
-      molecule.molfile,
-      getMolfileId(molecule) || `record-${index + 1}`,
-      options.inchiOptions,
-    );
-    results.push(result);
-    bumpStats(stats, result.status);
-    index += 1;
-    if (index % chunkSize === 0) {
-      // Inflate `total` if we ended up parsing more records than the
-      // dataset's `approxCount` advertised, so the bar never overshoots.
-      if (stats.done > stats.total) stats.total = stats.done;
-      options.onProgress?.({ ...stats });
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 0);
-      });
-    }
-  }
-  // Final emission with the now-exact total.
-  stats.total = stats.done;
-  options.onProgress?.({ ...stats });
-  return results;
+  return runOverSdf<RoundtripProgress, RoundtripResult>(molecules, {
+    approxTotal: options.approxTotal,
+    signal: options.signal,
+    onProgress: options.onProgress,
+    chunkSize: options.chunkSize ?? 25,
+    initialStats: {
+      done: 0,
+      total: 0,
+      ok: 0,
+      mismatch: 0,
+      inchiError: 0,
+      molfileError: 0,
+    },
+    convertOne: (molfile, molfileId) =>
+      roundtripOne(molfile, molfileId, options.inchiOptions),
+    bump: bumpStats,
+  });
 }
 
-function bumpStats(stats: RoundtripProgress, status: RoundtripStatus) {
-  stats.done += 1;
-  switch (status) {
+function bumpStats(stats: RoundtripProgress, result: RoundtripResult) {
+  switch (result.status) {
     case 'ok':
       stats.ok += 1;
       break;

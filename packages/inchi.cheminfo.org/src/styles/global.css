@@ -1,3 +1,8 @@
+:root {
+  --brand: #5b21b6;
+  --brand-accent: #fcd34d;
+}
+
 html,
 body {
   margin: 0;
@@ -19,6 +24,47 @@ body {
   padding: 16px;
 }
 
+/* Framed in another site: the frame is the margin, and it is usually narrow. */
+.app-shell-embedded {
+  max-width: none;
+  padding: 8px;
+}
+
+/* A link that hides the menu keeps the page it opens; only the strip goes. */
+.tab-list-hidden .bp6-tab-list {
+  display: none;
+}
+
+.app-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 10px;
+  border-bottom: 3px solid var(--brand-accent);
+}
+
+.app-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 22px;
+  color: #111418;
+}
+
+.app-title-site {
+  color: var(--brand);
+}
+
+.app-logo {
+  display: block;
+  width: 34px;
+  height: 34px;
+}
+
 .panel {
   background: white;
   border: 1px solid #d3d8de;
@@ -32,12 +78,55 @@ body {
 .panel-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  /* header, InChI input, molecule area, results */
+  grid-template-rows: auto auto 340px auto;
   gap: 16px;
+}
+
+/* A link that hides one direction leaves the other the whole width. */
+.panel-grid > .panel:only-child {
+  grid-column: 1 / -1;
+}
+
+/* Both panels share the row tracks, so the molecule areas end at the same
+   level. The editor has no input row of its own and spans that track. */
+.panel-grid > .panel {
+  display: grid;
+  grid-row: 1 / -1;
+  grid-template-rows: subgrid;
+  row-gap: 12px;
+}
+
+/* The editor spans the input row as well; `contain: size` keeps the canvas's
+   intrinsic height out of that row, which must fit the input alone. */
+.panel-molecule-tall {
+  grid-row: span 2;
+  contain: size;
+}
+
+.panel-head,
+.panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
 }
 
 @media (max-width: 1100px) {
   .panel-grid {
     grid-template-columns: 1fr;
+    grid-template-rows: none;
+  }
+
+  .panel-grid > .panel {
+    display: flex;
+    flex-direction: column;
+    grid-row: auto;
+    grid-template-rows: none;
+  }
+
+  .panel-molecule-tall {
+    height: 380px;
   }
 }
 
@@ -53,7 +142,7 @@ body {
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 13px;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .muted {
@@ -108,4 +197,345 @@ body {
   border-radius: 4px;
   padding: 12px;
   min-height: 240px;
+}
+
+/* --- More dropdown, sitting in the root tab list ----------------------- */
+
+.bp6-tab-list .more-tab.bp6-button {
+  align-self: stretch;
+  min-height: 40px;
+  padding: 0;
+  gap: 4px;
+  font-size: 16px;
+  font-weight: 400;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* Blueprint adds a margin-right to every button child; the gap alone spaces them. */
+.bp6-tab-list .more-tab.bp6-button > * {
+  margin: 0;
+}
+
+.bp6-tab-list .more-tab.bp6-button:hover {
+  color: #215db0;
+}
+
+.bp6-tab-list .more-tab.bp6-button.bp6-active {
+  color: #215db0;
+  box-shadow: inset 0 -3px 0 #215db0;
+}
+
+/* --- Guide ------------------------------------------------------------- */
+
+.guide-term {
+  border-bottom: 1px dotted #5f6b7c;
+  cursor: help;
+}
+
+.guide-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.92em;
+  background: #eef1f4;
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.guide-glossary-popover .bp6-popover-content {
+  max-width: 380px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* The popover is dark: the light chip and grey labels would be unreadable. */
+.guide-glossary-popover .guide-code {
+  background: rgb(255 255 255 / 16%);
+  color: #f6f7f9;
+}
+
+.guide-glossary-popover .muted {
+  color: #c5cbd3;
+}
+
+.guide-layers {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 8px;
+  border: 1px solid #d3d8de;
+  border-radius: 4px;
+  background: #f6f7f9;
+}
+
+.guide-layer-version {
+  color: #5f6b7c;
+  padding: 2px 3px 2px 0;
+}
+
+.guide-layer {
+  padding: 2px 3px;
+  border-radius: 3px;
+  cursor: help;
+}
+
+.guide-layer-focus {
+  font-weight: 700;
+  box-shadow: inset 0 0 0 1px currentcolor;
+}
+
+.guide-procedure {
+  margin: 0;
+  padding-left: 20px;
+  line-height: 1.55;
+}
+
+.guide-procedure li {
+  margin-bottom: 4px;
+}
+
+.guide-level-strip {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  border: 1px solid;
+  border-radius: 4px;
+  padding: 4px 8px;
+}
+
+.guide-level-title {
+  min-width: 170px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.guide-table {
+  width: 100%;
+  font-size: 12px;
+}
+
+.guide-table th {
+  white-space: nowrap;
+}
+
+/* A cell holding one short token — an atom number, a layer as it is written —
+   must never be split across two lines. */
+.guide-token {
+  white-space: nowrap;
+}
+
+.guide-exercises {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  margin-top: 12px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .guide-exercises {
+    grid-template-columns: 1fr;
+  }
+}
+
+.guide-exercises-alone {
+  grid-template-columns: 1fr;
+}
+
+.guide-exercise-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.guide-cheatsheet {
+  margin-top: 12px;
+}
+
+.guide-cheatsheet-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+  gap: 16px;
+}
+
+.guide-cheatsheet-heading {
+  margin: 0 0 4px;
+  font-size: 14px;
+  border-bottom: 2px solid;
+  padding-bottom: 2px;
+}
+
+.guide-rich-row {
+  border-bottom: 1px dotted #8f99a8;
+  cursor: help;
+}
+
+.guide-tooltip-example {
+  border-top: 1px solid rgb(255 255 255 / 25%);
+  padding-top: 6px;
+  font-size: 12px;
+}
+
+.loaded-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  border: 1px solid #d3d8de;
+  border-radius: 4px;
+  background: #f6f7f9;
+  padding: 8px 12px;
+}
+
+.convert-options-row {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.convert-options {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  flex: 0 1 auto;
+}
+
+.convert-action {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.convert-options .bp6-form-group {
+  margin: 0;
+}
+
+.preview-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.preview-capsules {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.preview-table {
+  border: 1px solid #d3d8de;
+  border-radius: 4px;
+  background: white;
+  font-size: 12px;
+  overflow: hidden;
+}
+
+.preview-table th {
+  background: #f6f7f9;
+  white-space: nowrap;
+}
+
+.preview-header {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.preview-cell {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.preview-tooltip .bp6-popover-content {
+  max-width: 560px;
+}
+
+.preview-tooltip-title {
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.preview-tooltip-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 2px 10px;
+  margin: 0;
+  font-size: 12px;
+}
+
+.preview-tooltip-grid dt {
+  color: #abb3bf;
+  white-space: nowrap;
+}
+
+.preview-tooltip-grid dd {
+  margin: 0;
+  font-family: ui-monospace, sfmono-regular, menlo, consolas, monospace;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.preview-tooltip-grid .is-active {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.structure-error {
+  color: #c87619;
+  font-style: italic;
+}
+
+.share-link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 20px 0;
+}
+
+.share-url {
+  margin: 0;
+  padding: 8px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #f6f7f9;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.share-link-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.share-section + .share-section {
+  margin-top: 16px;
+}
+
+.share-feature-description {
+  margin: -4px 0 8px 26px;
+  font-size: 12px;
+}
+
+@media print {
+  .app-header,
+  .bp6-tab-list {
+    display: none !important;
+  }
+
+  .guide-cheatsheet {
+    border: none;
+    padding: 0;
+  }
 }

@@ -9,5 +9,8 @@ export default defineConfig({
     snapshotFormat: {
       maxOutputLength: Number.MAX_SAFE_INTEGER,
     },
+    // Several files instantiate the InChI WASM; in parallel that can take
+    // longer than the 5 s default on a loaded machine.
+    testTimeout: 30_000,
   },
 });

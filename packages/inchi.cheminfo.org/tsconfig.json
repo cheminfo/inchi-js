@@ -1,14 +1,9 @@
 {
-  "extends": "@zakodium/tsconfig",
+  "extends": "@zakodium/tsconfig/jsx",
   "compilerOptions": {
+    "noEmit": true,
     "noUncheckedIndexedAccess": true,
-    "outDir": "dist",
-    "jsx": "react-jsx",
-    "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": ["node"],
-    "paths": {
-      "inchi-js": ["../inchi-js/lib/index.d.ts"]
-    }
+    "types": ["node"]
   },
   "include": ["src", "vite*.ts", "vitest*.ts"]
 }

@@ -1,25 +1,19 @@
-import {
-  Button,
-  Callout,
-  HTMLSelect,
-  HTMLTable,
-  Icon,
-  ProgressBar,
-  Tag,
-} from '@blueprintjs/core';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Callout, Icon, Tag } from '@blueprintjs/core';
+import { useCallback, useMemo, useState } from 'react';
 
-import type { TestDataset } from '../roundtrip/datasets.ts';
-import { TEST_DATASETS } from '../roundtrip/datasets.ts';
 import type {
   ForwardProgress,
   ForwardResult,
   ForwardStatus,
 } from '../roundtrip/forwardTest.ts';
-import type {
-  ForwardWorkerInbound,
-  ForwardWorkerOutbound,
-} from '../roundtrip/forwardWorker.ts';
+
+import { DatasetPicker } from './testRun/DatasetPicker.tsx';
+import type { FilterOption } from './testRun/FilterTags.tsx';
+import { FilterTags } from './testRun/FilterTags.tsx';
+import { ProgressRow } from './testRun/ProgressRow.tsx';
+import { ResultsTable } from './testRun/ResultsTable.tsx';
+import { IdCell, InchiCell, MessageCell } from './testRun/cells.tsx';
+import { useSdfTestRun } from './testRun/useSdfTestRun.ts';
 
 type Filter = 'all' | 'failed' | 'warning';
 
@@ -33,11 +27,7 @@ const STATUS_INTENT: Record<ForwardStatus, 'success' | 'danger'> = {
   'inchi-error': 'danger',
 };
 
-function inchiOptionsFor(dataset: TestDataset): string {
-  if (dataset.id.startsWith('organometallics')) return '-RecMet';
-  if (dataset.id === 'alex_clark') return '-RecMet';
-  return '';
-}
+const HEADERS = ['Status', 'ID', 'InChI', 'InChIKey', 'Message'];
 
 /**
  * Forward-only test panel: runs `Molfile → InChI` on every record of
@@ -48,97 +38,24 @@ function inchiOptionsFor(dataset: TestDataset): string {
  * @returns The Molfile → InChI tests JSX.
  */
 export function ForwardTestPanel() {
-  const [selectedDatasetId, setSelectedDatasetId] = useState<string>(
-    TEST_DATASETS[0]?.id ?? '',
-  );
   const [filter, setFilter] = useState<Filter>('failed');
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<ForwardProgress | null>(null);
-  const [results, setResults] = useState<ForwardResult[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const workerRef = useRef<Worker | null>(null);
-
-  const selectedDataset = useMemo(
-    () => TEST_DATASETS.find((d) => d.id === selectedDatasetId),
-    [selectedDatasetId],
+  const createWorker = useCallback(
+    () =>
+      new Worker(new URL('../roundtrip/forwardWorker.ts', import.meta.url), {
+        type: 'module',
+      }),
+    [],
   );
-
-  const handleDatasetChange = useCallback((id: string) => {
-    setSelectedDatasetId(id);
-  }, []);
-
-  const baseUrl = import.meta.env.BASE_URL || '/';
-
-  useEffect(() => {
-    return () => {
-      workerRef.current?.terminate();
-      workerRef.current = null;
-    };
-  }, []);
-
-  const handleRun = useCallback(() => {
-    if (!selectedDataset || running) return;
-    workerRef.current?.terminate();
-
-    const worker = new Worker(
-      new URL('../roundtrip/forwardWorker.ts', import.meta.url),
-      { type: 'module' },
-    );
-    workerRef.current = worker;
-
-    const finalize = () => {
-      worker.terminate();
-      if (workerRef.current === worker) workerRef.current = null;
-      setRunning(false);
-    };
-
-    worker.addEventListener(
-      'message',
-      (event: MessageEvent<ForwardWorkerOutbound>) => {
-        const message = event.data;
-        switch (message.type) {
-          case 'progress':
-            setProgress(message.stats);
-            break;
-          case 'done':
-            setResults(message.results);
-            finalize();
-            break;
-          case 'error':
-            setError(message.message);
-            finalize();
-            break;
-          default:
-            break;
-        }
-      },
-    );
-
-    worker.addEventListener('error', (event) => {
-      setError(event.message || 'Worker error');
-      finalize();
-    });
-
-    setRunning(true);
-    setError(null);
-    setResults(null);
-    setProgress(null);
-
-    const url = `${baseUrl}test-data/${selectedDataset.filename}`;
-    const payload: ForwardWorkerInbound = {
-      type: 'run',
-      url: new URL(url, globalThis.location.href).toString(),
-      inchiOptions: inchiOptionsFor(selectedDataset),
-      approxTotal: selectedDataset.approxCount,
-    };
-    worker.postMessage(payload);
-  }, [baseUrl, running, selectedDataset]);
-
-  const handleStop = useCallback(() => {
-    workerRef.current?.terminate();
-    workerRef.current = null;
-    setRunning(false);
-  }, []);
+  const run = useSdfTestRun<ForwardProgress, ForwardResult>(createWorker);
+  const {
+    progress,
+    results,
+    error,
+    running,
+    selectedDatasetId,
+    setSelectedDatasetId,
+    selectedDataset,
+  } = run;
 
   const stats = useMemo(() => computeStats(results), [results]);
   const filtered = useMemo(
@@ -158,69 +75,68 @@ export function ForwardTestPanel() {
         failure is a real regression of the embedded WASM build.
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 12,
-          alignItems: 'center',
-        }}
-      >
-        <label
-          htmlFor="forward-dataset-select"
-          className="muted"
-          style={{ fontSize: 12 }}
-        >
-          Dataset
-        </label>
-        <HTMLSelect
-          id="forward-dataset-select"
-          value={selectedDatasetId}
-          onChange={(event) => handleDatasetChange(event.currentTarget.value)}
-          disabled={running}
-        >
-          {TEST_DATASETS.map((dataset) => (
-            <option key={dataset.id} value={dataset.id}>
-              {dataset.filename} (~{dataset.approxCount.toLocaleString()})
-            </option>
-          ))}
-        </HTMLSelect>
-        {running ? (
-          <Button
-            icon="stop"
-            intent="danger"
-            onClick={handleStop}
-            variant="solid"
-          >
-            Stop
-          </Button>
-        ) : (
-          <Button
-            icon="play"
-            intent="primary"
-            onClick={handleRun}
-            variant="solid"
-          >
-            Run Molfile → InChI
-          </Button>
-        )}
-        {selectedDataset && (
-          <span className="muted" style={{ fontSize: 12 }}>
-            {selectedDataset.description} —{' '}
-            <code>{selectedDataset.origin}</code>
-          </span>
-        )}
-      </div>
+      <DatasetPicker
+        selectId="forward-dataset-select"
+        runLabel="Run Molfile → InChI"
+        selectedDatasetId={selectedDatasetId}
+        onSelect={setSelectedDatasetId}
+        selectedDataset={selectedDataset}
+        running={running}
+        onRun={run.run}
+        onStop={run.stop}
+      />
 
-      {progress && <ProgressRow progress={progress} running={running} />}
+      {progress && (
+        <ProgressRow
+          progress={progress}
+          running={running}
+          summary={
+            <>
+              ok {progress.ok} · errors {progress.inchiError} · warnings{' '}
+              {progress.warning}
+            </>
+          }
+        />
+      )}
 
       {error && <div className="error-card">{error}</div>}
 
       {results && (
         <>
           <StatsRow stats={stats} />
-          <FilterRow filter={filter} setFilter={setFilter} stats={stats} />
-          <ResultsTable rows={filtered} />
+          <FilterTags
+            filter={filter}
+            onChange={setFilter}
+            options={filterOptions(stats)}
+          />
+          <ResultsTable
+            rows={filtered}
+            headers={HEADERS}
+            rowKey={(row) => row.molfileId}
+            renderRow={(row) => (
+              <>
+                <td>
+                  <Tag minimal intent={STATUS_INTENT[row.status]}>
+                    {STATUS_LABEL[row.status]}
+                  </Tag>
+                  {row.warning && (
+                    <Tag
+                      minimal
+                      intent="warning"
+                      style={{ marginLeft: 4 }}
+                      title="The C library returned a non-fatal warning"
+                    >
+                      warn
+                    </Tag>
+                  )}
+                </td>
+                <IdCell value={row.molfileId} />
+                <InchiCell value={row.inchi} />
+                <IdCell value={row.inchikey} />
+                <MessageCell value={row.message} />
+              </>
+            )}
+          />
         </>
       )}
     </div>
@@ -235,18 +151,19 @@ interface Stats {
 }
 
 function computeStats(results: ForwardResult[] | null): Stats {
-  if (!results) {
-    return { total: 0, ok: 0, failed: 0, warning: 0 };
-  }
-  let ok = 0;
-  let failed = 0;
-  let warning = 0;
+  const stats: Stats = {
+    total: results?.length ?? 0,
+    ok: 0,
+    failed: 0,
+    warning: 0,
+  };
+  if (!results) return stats;
   for (const result of results) {
-    if (result.status === 'ok') ok += 1;
-    else failed += 1;
-    if (result.warning) warning += 1;
+    if (result.status === 'ok') stats.ok += 1;
+    else stats.failed += 1;
+    if (result.warning) stats.warning += 1;
   }
-  return { total: results.length, ok, failed, warning };
+  return stats;
 }
 
 function filterResults(
@@ -266,40 +183,17 @@ function filterResults(
   }
 }
 
-function ProgressRow({
-  progress,
-  running,
-}: {
-  progress: ForwardProgress;
-  running: boolean;
-}) {
-  const fraction = progress.total === 0 ? 0 : progress.done / progress.total;
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: 12,
-        }}
-      >
-        <span className="muted">
-          {progress.done.toLocaleString()} / {progress.total.toLocaleString()}{' '}
-          structures processed
-        </span>
-        <span className="muted">
-          ok {progress.ok} · errors {progress.inchiError} · warnings{' '}
-          {progress.warning}
-        </span>
-      </div>
-      <ProgressBar
-        animate={running}
-        stripes={running}
-        intent={running ? 'primary' : 'success'}
-        value={fraction}
-      />
-    </div>
-  );
+function filterOptions(stats: Stats): Array<FilterOption<Filter>> {
+  return [
+    { id: 'failed', label: 'Failures', count: stats.failed, intent: 'danger' },
+    {
+      id: 'warning',
+      label: 'Warnings',
+      count: stats.warning,
+      intent: 'warning',
+    },
+    { id: 'all', label: 'All', count: stats.total, intent: 'primary' },
+  ];
 }
 
 function StatsRow({ stats }: { stats: Stats }) {
@@ -325,129 +219,5 @@ function StatsRow({ stats }: { stats: Stats }) {
         </Tag>
       </div>
     </Callout>
-  );
-}
-
-function FilterRow({
-  filter,
-  setFilter,
-  stats,
-}: {
-  filter: Filter;
-  setFilter: (filter: Filter) => void;
-  stats: Stats;
-}) {
-  const options: Array<{
-    id: Filter;
-    label: string;
-    count: number;
-    intent: 'success' | 'warning' | 'danger' | 'primary';
-  }> = [
-    { id: 'failed', label: 'Failures', count: stats.failed, intent: 'danger' },
-    {
-      id: 'warning',
-      label: 'Warnings',
-      count: stats.warning,
-      intent: 'warning',
-    },
-    { id: 'all', label: 'All', count: stats.total, intent: 'primary' },
-  ];
-  return (
-    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-      {options.map((option) => {
-        const active = filter === option.id;
-        return (
-          <Tag
-            key={option.id}
-            interactive
-            minimal={!active}
-            intent={option.intent}
-            onClick={() => setFilter(option.id)}
-          >
-            {option.label} ({option.count.toLocaleString()})
-          </Tag>
-        );
-      })}
-    </div>
-  );
-}
-
-function ResultsTable({ rows }: { rows: ForwardResult[] }) {
-  if (rows.length === 0) {
-    return (
-      <div className="muted" style={{ fontSize: 13, fontStyle: 'italic' }}>
-        No structures match the current filter.
-      </div>
-    );
-  }
-  const visible = rows.slice(0, 500);
-  return (
-    <div style={{ overflow: 'auto', maxHeight: 600 }}>
-      <HTMLTable bordered compact striped style={{ width: '100%' }}>
-        <thead>
-          <tr>
-            <th>Status</th>
-            <th>ID</th>
-            <th>InChI</th>
-            <th>InChIKey</th>
-            <th>Message</th>
-          </tr>
-        </thead>
-        <tbody>
-          {visible.map((row) => (
-            <tr key={row.molfileId}>
-              <td>
-                <Tag minimal intent={STATUS_INTENT[row.status]}>
-                  {STATUS_LABEL[row.status]}
-                </Tag>
-                {row.warning && (
-                  <Tag
-                    minimal
-                    intent="warning"
-                    style={{ marginLeft: 4 }}
-                    title="The C library returned a non-fatal warning"
-                  >
-                    warn
-                  </Tag>
-                )}
-              </td>
-              <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                {row.molfileId}
-              </td>
-              <td
-                className="mono"
-                style={{
-                  maxWidth: 280,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                }}
-                title={row.inchi}
-              >
-                {row.inchi || <span className="muted">—</span>}
-              </td>
-              <td className="mono" style={{ whiteSpace: 'nowrap' }}>
-                {row.inchikey || <span className="muted">—</span>}
-              </td>
-              <td style={{ fontSize: 12 }}>
-                {row.message ? (
-                  <span style={{ color: '#8e292c' }}>{row.message}</span>
-                ) : (
-                  <span className="muted">—</span>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </HTMLTable>
-      {rows.length > visible.length && (
-        <div
-          className="muted"
-          style={{ fontSize: 12, marginTop: 8, fontStyle: 'italic' }}
-        >
-          Showing the first {visible.length.toLocaleString()} of{' '}
-          {rows.length.toLocaleString()} matching rows.
-        </div>
-      )}
-    </div>
   );
 }

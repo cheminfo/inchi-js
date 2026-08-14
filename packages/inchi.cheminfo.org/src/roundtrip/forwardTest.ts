@@ -1,7 +1,8 @@
 import { inchiFromMolfile, inchikeyFromInchi } from 'inchi-js';
 import type { IteratorMolecule } from 'sdf-parser';
 
-import { getMolfileId } from './sdfParsing.ts';
+import type { RunProgress } from './runOverSdf.ts';
+import { runOverSdf } from './runOverSdf.ts';
 
 /**
  * Outcome of a single Molfile → InChI conversion. The
@@ -68,9 +69,7 @@ export async function forwardOne(
   };
 }
 
-export interface ForwardProgress {
-  done: number;
-  total: number;
+export interface ForwardProgress extends RunProgress {
   ok: number;
   inchiError: number;
   warning: number;
@@ -104,42 +103,19 @@ export async function forwardAll(
     chunkSize?: number;
   } = {},
 ): Promise<ForwardResult[]> {
-  const chunkSize = options.chunkSize ?? 50;
-  const results: ForwardResult[] = [];
-  const stats: ForwardProgress = {
-    done: 0,
-    total: options.approxTotal ?? 0,
-    ok: 0,
-    inchiError: 0,
-    warning: 0,
-  };
-
-  let index = 0;
-  for await (const molecule of molecules) {
-    if (options.signal?.aborted) throw new Error('aborted');
-    const result = await forwardOne(
-      molecule.molfile,
-      getMolfileId(molecule) || `record-${index + 1}`,
-      options.inchiOptions,
-    );
-    results.push(result);
-    bumpStats(stats, result);
-    index += 1;
-    if (index % chunkSize === 0) {
-      if (stats.done > stats.total) stats.total = stats.done;
-      options.onProgress?.({ ...stats });
-      await new Promise<void>((resolve) => {
-        setTimeout(resolve, 0);
-      });
-    }
-  }
-  stats.total = stats.done;
-  options.onProgress?.({ ...stats });
-  return results;
+  return runOverSdf<ForwardProgress, ForwardResult>(molecules, {
+    approxTotal: options.approxTotal,
+    signal: options.signal,
+    onProgress: options.onProgress,
+    chunkSize: options.chunkSize ?? 50,
+    initialStats: { done: 0, total: 0, ok: 0, inchiError: 0, warning: 0 },
+    convertOne: (molfile, molfileId) =>
+      forwardOne(molfile, molfileId, options.inchiOptions),
+    bump: bumpStats,
+  });
 }
 
 function bumpStats(stats: ForwardProgress, result: ForwardResult) {
-  stats.done += 1;
   if (result.status === 'ok') stats.ok += 1;
   else stats.inchiError += 1;
   if (result.warning) stats.warning += 1;

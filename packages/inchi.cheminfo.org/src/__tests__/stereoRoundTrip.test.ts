@@ -50,6 +50,7 @@ test('non-chiral InChI round-trips identically', async () => {
 // substrates — the result is a molfile that round-trips to the
 // enantiomer of the source InChI. Un-skip once openchemlib ships the
 // fix.
+// eslint-disable-next-line vitest/no-disabled-tests -- blocked on an upstream OCL bug, not a temporary skip; the bodies must stay runnable
 test.skip.each([
   // (R)-3-methylcyclohexanone — chirality on a saturated ring.
   'InChI=1S/C7H12O/c1-6-3-2-4-7(8)5-6/h6H,2-5H2,1H3/t6-/m1/s1',

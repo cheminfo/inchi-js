@@ -7,8 +7,12 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { App } from './App.tsx';
+import { startConversions } from './conversions.ts';
+import { startRouting } from './routing.ts';
 
 FocusStyleManager.onlyShowFocusOnTabs();
+startRouting();
+startConversions();
 
 const container = document.querySelector('#root');
 if (!container) {

@@ -133,10 +133,16 @@ test('OCL is internally self-consistent: parity in == parity re-parsed', () => {
   }
 });
 
-test('BUG: OCL parity ↔ InChI /m mapping flips between case A and case B', async () => {
-  const inchiOf = async (molfile: string) =>
-    (await inchiFromMolfile(molfile)).inchi;
+async function inchiOf(molfile: string) {
+  const result = await inchiFromMolfile(molfile);
+  return result.inchi;
+}
 
+function mFlag(inchi: string) {
+  return inchi.match(/\/m(?<flag>[01])\b/)?.groups?.flag;
+}
+
+test('BUG: OCL parity ↔ InChI /m mapping flips between case A and case B', async () => {
   const mfA1 = buildMolfile(CASE_A, 1);
   const mfA2 = buildMolfile(CASE_A, 2);
   const mfB1 = buildMolfile(CASE_B, 1);
@@ -156,9 +162,6 @@ test('BUG: OCL parity ↔ InChI /m mapping flips between case A and case B', asy
       `B p=1 → ${iB1}\n` +
       `B p=2 → ${iB2}\n`,
   );
-
-  // Extract /m flag (0 or 1, or undefined if absent)
-  const mFlag = (inchi: string) => inchi.match(/\/m([01])\b/)?.[1];
 
   // Case A: parity 1 → /m0, parity 2 → /m1
   expect(mFlag(iA1)).toBe('0');

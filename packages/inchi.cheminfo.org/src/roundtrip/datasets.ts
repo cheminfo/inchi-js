@@ -10,6 +10,18 @@ export interface TestDataset {
   origin: string;
 }
 
+/**
+ * Picks how to invoke `inchiFromMolfile` per dataset. Organometallic
+ * fixtures upstream are always exercised with the `-RecMet` switch.
+ * @param dataset - The dataset whose canonical CLI options we want.
+ * @returns The raw option string to forward to the C wrapper.
+ */
+export function inchiOptionsFor(dataset: TestDataset): string {
+  if (dataset.id.startsWith('organometallics')) return '-RecMet';
+  if (dataset.id === 'alex_clark') return '-RecMet';
+  return '';
+}
+
 export const TEST_DATASETS: TestDataset[] = [
   {
     id: 'inchi',

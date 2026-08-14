@@ -1,154 +1,41 @@
 import { Button, Icon } from '@blueprintjs/core';
-import type { InchiFromMolfileResult, InchikeyFromInchiResult } from 'inchi-js';
-import { inchiFromMolfile, inchikeyFromInchi } from 'inchi-js';
+import { useSignals } from '@preact/signals-react/runtime';
 import { Molecule } from 'openchemlib';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { CanvasEditorOnChangeMolecule } from 'react-ocl';
 import { CanvasMoleculeEditor } from 'react-ocl';
 
-import { CopyButton } from './CopyButton.tsx';
+import { messageOf } from '../messageOf.ts';
+import { setIdCode, state } from '../state/index.ts';
 
-const INITIAL_SMILES = 'CC(=O)OCC';
-const STORAGE_KEY = 'inchi.cheminfo.org:structure-to-inchi:idcode:v1';
-
-interface Result {
-  inchi: string;
-  inchikey: string;
-  auxinfo: string;
-  message: string;
-  log: string;
-  warning: boolean;
-  error: string | null;
-  smiles: string;
-  idCode: string;
-}
-
-const EMPTY_RESULT: Result = {
-  inchi: '',
-  inchikey: '',
-  auxinfo: '',
-  message: '',
-  log: '',
-  warning: false,
-  error: null,
-  smiles: '',
-  idCode: '',
-};
-
-function defaultIdCode(): string {
-  try {
-    return Molecule.fromSmiles(INITIAL_SMILES).getIDCode();
-  } catch {
-    return '';
-  }
-}
-
-function loadInitialIdCode(): string {
-  try {
-    const stored = globalThis.localStorage?.getItem(STORAGE_KEY);
-    if (stored) return stored;
-  } catch {
-    // localStorage may be unavailable.
-  }
-  return defaultIdCode();
-}
+import { ResultRow } from './ResultRow.tsx';
+import { INITIAL_SMILES } from './structureToInchiResult.ts';
 
 /**
  * Live structure → InChI panel. Each edit in the OCL canvas editor
- * pushes the molfile through `inchiFromMolfile` and `inchikeyFromInchi`,
- * surfacing the InChI string, InChIKey, AuxInfo, and any warning/error
- * messages from the engine.
+ * writes the drawing to `state.preferences.idCode`, which pushes it through
+ * `inchiFromMolfile` and `inchikeyFromInchi`, surfacing the InChI
+ * string, InChIKey, AuxInfo, and any warning/error from the engine.
  * @returns The panel JSX.
  */
 export function StructureToInchiPanel() {
-  const storedIdCode = useMemo(() => loadInitialIdCode(), []);
-  const lastIdCodeRef = useRef<string>(storedIdCode);
-  const [result, setResult] = useState<Result>(EMPTY_RESULT);
-  const [pending, setPending] = useState(false);
+  useSignals();
+  const result = state.data.structure.value;
+  const pending = state.view.structurePending.value;
+
   const [pasteError, setPasteError] = useState<string | null>(null);
-  const [editorMolfile, setEditorMolfile] = useState<string>(() => {
-    try {
-      return Molecule.fromIDCode(storedIdCode).toMolfile();
-    } catch {
-      return Molecule.fromSmiles(INITIAL_SMILES).toMolfile();
-    }
-  });
-
-  const runConversion = useCallback(async (idCode: string) => {
-    if (!idCode) {
-      setResult(EMPTY_RESULT);
-      return;
-    }
-    let molecule: Molecule;
-    let smiles = '';
-    let molfile = '';
-    try {
-      molecule = Molecule.fromIDCode(idCode);
-      smiles = molecule.toIsomericSmiles();
-      molfile = molecule.toMolfile();
-    } catch (error) {
-      setResult({
-        ...EMPTY_RESULT,
-        idCode,
-        error: error instanceof Error ? error.message : String(error),
-      });
-      return;
-    }
-    if (molecule.getAllAtoms() === 0) {
-      setResult({ ...EMPTY_RESULT, idCode, smiles });
-      return;
-    }
-    setPending(true);
-    try {
-      const inchiResult = await inchiFromMolfile(molfile);
-      let keyResult: InchikeyFromInchiResult = {
-        returnCode: 0,
-        inchikey: '',
-        message: '',
-      };
-      if (inchiResult.inchi) {
-        keyResult = await inchikeyFromInchi(inchiResult.inchi);
-      }
-      setResult(buildResult(inchiResult, keyResult, smiles, idCode));
-    } catch (error) {
-      setResult({
-        ...EMPTY_RESULT,
-        idCode,
-        smiles,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setPending(false);
-    }
-  }, []);
-
-  const handleChange = useCallback(
-    (event: CanvasEditorOnChangeMolecule) => {
-      const fullIdcode = event.getIdcode();
-      const [idCodeOnly] = fullIdcode.split(' ');
-      const canonical = idCodeOnly ?? '';
-      if (canonical === lastIdCodeRef.current) return;
-      lastIdCodeRef.current = canonical;
-      void runConversion(canonical);
-    },
-    [runConversion],
+  const [editorMolfile, setEditorMolfile] = useState<string>(() =>
+    molfileOf(state.preferences.idCode.peek()),
   );
 
-  useEffect(() => {
-    // The conversion calls into WebAssembly (an external system), so
-    // running it from an effect is the right shape even though the
-    // resolve setState() lives outside React.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- external WASM call
-    void runConversion(storedIdCode);
-  }, [runConversion, storedIdCode]);
-
-  useEffect(() => {
-    try {
-      globalThis.localStorage?.setItem(STORAGE_KEY, result.idCode);
-    } catch {
-      // localStorage may be unavailable; persistence is best-effort.
-    }
-  }, [result.idCode]);
+  const handleChange = useCallback((event: CanvasEditorOnChangeMolecule) => {
+    const [idCodeOnly] = event.getIdcode().split(' ');
+    const canonical = idCodeOnly ?? '';
+    // The editor fires on every stroke; the signal already holds the last
+    // drawing, so comparing against it is what stops a redundant run.
+    if (canonical === state.preferences.idCode.peek()) return;
+    setIdCode(canonical);
+  }, []);
 
   const handlePaste = useCallback(async () => {
     setPasteError(null);
@@ -165,47 +52,46 @@ export function StructureToInchiPanel() {
         );
         return;
       }
-      const molfile = molecule.toMolfile();
-      const idCode = molecule.getIDCode();
-      lastIdCodeRef.current = idCode;
-      setEditorMolfile(molfile);
-      void runConversion(idCode);
+      setEditorMolfile(molecule.toMolfile());
+      setIdCode(molecule.getIDCode());
     } catch (error) {
-      setPasteError(error instanceof Error ? error.message : String(error));
+      setPasteError(messageOf(error));
     }
-  }, [runConversion]);
+  }, []);
 
   return (
     <div className="panel">
-      <h2 className="section-title">
-        <Icon icon="arrow-right" /> Structure → InChI
-      </h2>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-        }}
-      >
-        <div className="muted">
-          Draw or edit a molecule. The InChI string and InChIKey are regenerated
-          on every change.
-        </div>
-        <Button
-          size="small"
-          icon="clipboard"
-          variant="minimal"
-          title="Paste a Molfile, SMILES, or idCode from the clipboard"
-          onClick={() => {
-            void handlePaste();
+      <div className="panel-head">
+        <h2 className="section-title">
+          <Icon icon="arrow-right" /> Structure → InChI
+        </h2>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
           }}
         >
-          Paste
-        </Button>
+          <div className="muted">
+            Draw or edit a molecule. The InChI string and InChIKey are
+            regenerated on every change.
+          </div>
+          <Button
+            size="small"
+            icon="clipboard"
+            variant="minimal"
+            title="Paste a Molfile, SMILES, or idCode from the clipboard"
+            onClick={() => {
+              void handlePaste();
+            }}
+          >
+            Paste
+          </Button>
+        </div>
       </div>
-      {pasteError && <div className="error-card">{pasteError}</div>}
-      <div className="editor-frame" style={{ height: 380 }}>
+
+      <div className="editor-frame panel-molecule-tall">
         <CanvasMoleculeEditor
           inputFormat="molfile"
           inputValue={editorMolfile}
@@ -213,110 +99,52 @@ export function StructureToInchiPanel() {
         />
       </div>
 
-      {result.error && <div className="error-card">{result.error}</div>}
-      {result.warning && result.message && (
-        <div className="warning-card">{result.message}</div>
-      )}
+      <div className="panel-section">
+        {pasteError && <div className="error-card">{pasteError}</div>}
+        {result.error && <div className="error-card">{result.error}</div>}
+        {result.warning && result.message && (
+          <div className="warning-card">{result.message}</div>
+        )}
 
-      <ResultRow
-        label="InChI"
-        value={result.inchi}
-        placeholder={pending ? 'Computing…' : '(empty molecule)'}
-      />
-      <ResultRow
-        label="InChIKey"
-        value={result.inchikey}
-        placeholder={pending ? 'Computing…' : ''}
-      />
+        <ResultRow
+          label="InChI"
+          value={result.inchi}
+          placeholder={pending ? 'Computing…' : '(empty molecule)'}
+        />
+        <ResultRow
+          label="InChIKey"
+          value={result.inchikey}
+          placeholder={pending ? 'Computing…' : ''}
+        />
 
-      <details>
-        <summary className="muted" style={{ cursor: 'pointer', fontSize: 12 }}>
-          AuxInfo & canonical SMILES
-        </summary>
-        <div className="result-card" style={{ marginTop: 8 }}>
-          <KeyValue label="SMILES" value={result.smiles} />
-          <KeyValue label="AuxInfo" value={result.auxinfo} />
-        </div>
-      </details>
-    </div>
-  );
-}
-
-function ResultRow({
-  label,
-  value,
-  placeholder,
-}: {
-  label: string;
-  value: string;
-  placeholder?: string;
-}) {
-  return (
-    <div className="result-card">
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-        }}
-      >
-        <div className="muted" style={{ fontSize: 12 }}>
-          {label}
-        </div>
-        <CopyButton value={value} label={label} />
-      </div>
-      <div className="mono">
-        {value || <span className="muted">{placeholder ?? '—'}</span>}
+        <details>
+          <summary
+            className="muted"
+            style={{ cursor: 'pointer', fontSize: 12 }}
+          >
+            AuxInfo & canonical SMILES
+          </summary>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              marginTop: 8,
+            }}
+          >
+            <ResultRow label="SMILES" value={result.smiles} />
+            <ResultRow label="AuxInfo" value={result.auxinfo} />
+          </div>
+        </details>
       </div>
     </div>
   );
 }
 
-function KeyValue({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-        }}
-      >
-        <div className="muted" style={{ fontSize: 12 }}>
-          {label}
-        </div>
-        <CopyButton value={value} label={label} />
-      </div>
-      <div className="mono">{value || '—'}</div>
-    </div>
-  );
-}
-
-function buildResult(
-  inchi: InchiFromMolfileResult,
-  inchikey: InchikeyFromInchiResult,
-  smiles: string,
-  idCode: string,
-): Result {
-  if (inchi.returnCode === -1) {
-    return {
-      ...EMPTY_RESULT,
-      smiles,
-      idCode,
-      error: inchi.message || inchi.log || 'InChI generation failed.',
-    };
+function molfileOf(idCode: string): string {
+  try {
+    return Molecule.fromIDCode(idCode).toMolfile();
+  } catch {
+    return Molecule.fromSmiles(INITIAL_SMILES).toMolfile();
   }
-  return {
-    inchi: inchi.inchi,
-    inchikey: inchikey.inchikey,
-    auxinfo: inchi.auxinfo,
-    message: inchi.message,
-    log: inchi.log,
-    warning: inchi.returnCode === 1,
-    error: null,
-    smiles,
-    idCode,
-  };
 }

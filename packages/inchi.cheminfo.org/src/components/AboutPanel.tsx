@@ -1,4 +1,4 @@
-import { Callout, Icon } from '@blueprintjs/core';
+import { Callout } from '@blueprintjs/core';
 import { INCHI_C_VERSION } from 'inchi-js';
 
 interface Citation {
@@ -61,7 +61,12 @@ export function AboutPanel() {
   return (
     <div className="panel" style={{ gap: 16 }}>
       <h2 className="section-title">
-        <Icon icon="info-sign" /> About this playground
+        <img
+          src="/logo.svg"
+          alt=""
+          style={{ width: 28, height: 28, display: 'block' }}
+        />
+        About this playground
       </h2>
 
       <Callout intent="primary" icon="lab-test">
@@ -82,6 +87,31 @@ export function AboutPanel() {
           WASM build against the upstream IUPAC regression corpora.
         </p>
       </Callout>
+
+      <p
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          margin: 0,
+        }}
+      >
+        <span>This tool is provided by Luc Patiny from</span>
+        <a
+          href="https://www.epfl.ch"
+          target="_blank"
+          rel="noreferrer"
+          aria-label="EPFL"
+          style={{ display: 'inline-flex', alignItems: 'center' }}
+        >
+          <img
+            src="/epfl-logo.svg"
+            alt="EPFL"
+            height={28}
+            style={{ display: 'block' }}
+          />
+        </a>
+      </p>
 
       <section>
         <h3 style={{ marginBottom: 8 }}>Embedded software</h3>
@@ -212,16 +242,6 @@ export function AboutPanel() {
         <ul style={{ marginTop: 0, paddingLeft: 20, lineHeight: 1.55 }}>
           <li>
             <a
-              href="https://github.com/cheminfo/inchi"
-              target="_blank"
-              rel="noreferrer"
-            >
-              cheminfo/inchi
-            </a>{' '}
-            — this monorepo (library + playground).
-          </li>
-          <li>
-            <a
               href="https://www.npmjs.com/package/inchi-js"
               target="_blank"
               rel="noreferrer"
@@ -239,16 +259,6 @@ export function AboutPanel() {
               inchi-trust.org
             </a>{' '}
             — the InChI Trust, custodian of the standard.
-          </li>
-          <li>
-            <a
-              href="https://www.cheminfo.org/"
-              target="_blank"
-              rel="noreferrer"
-            >
-              cheminfo.org
-            </a>{' '}
-            — the cheminfo project at EPFL.
           </li>
         </ul>
       </section>
