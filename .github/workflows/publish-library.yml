@@ -18,7 +18,7 @@ jobs:
           node-version: 24
           registry-url: 'https://registry.npmjs.org'
       - run: npm ci
-      - run: npm test -w inchi-js
+      - run: npm test
       - run: npm publish -w inchi-js --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_BOT_TOKEN }}

@@ -1,5 +1,10 @@
 name: Deploy inchi-js on lactame.com
 
+# Custom workflow (does not use zakodium/workflows lactame-deploy.yml)
+# because that one derives the package name from the ROOT package.json —
+# `inchi-monorepo` here — and passes no version. This repo publishes the
+# nested `packages/inchi-js` workspace instead.
+
 on:
   workflow_dispatch:
   push:

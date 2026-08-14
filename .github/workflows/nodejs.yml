@@ -3,9 +3,10 @@ name: Node.js CI
 # Custom workflow (does not use the shared zakodium/workflows reusable)
 # because the IUPAC InChI regression tests require the `vendor/inchi`
 # git submodule, which the shared workflow does not initialize.
-# `npm test -w inchi-js` runs the full suite — including the 4,190+
-# molfile → InChI regression cases — against both the TypeScript
-# source and the bundled `lib/inchi-js.js` artifact.
+# `npm test` runs both workspaces — including the 4,190+ molfile → InChI
+# regression cases against the TypeScript source and the bundled
+# `lib/inchi-js.js` artifact — plus type-check, eslint and prettier
+# across the whole repository.
 
 on:
   push:
@@ -24,4 +25,4 @@ jobs:
         with:
           node-version: 24
       - run: npm ci
-      - run: npm test -w inchi-js
+      - run: npm test
