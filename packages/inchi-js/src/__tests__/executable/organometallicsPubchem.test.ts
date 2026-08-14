@@ -30,7 +30,7 @@ test(
       // eslint-disable-next-line no-await-in-loop -- WASM calls must be sequential
       const result = await inchiFromMolfile(molfile, { options: '-RecMet' });
       if (!result.inchi) {
-        const titleLine = molfile.split('\n')[0]?.trim() ?? '(no title)';
+        const titleLine = molfile.split('\n', 1)[0]?.trim() ?? '(no title)';
         missing.push(`${titleLine}: ${result.log || '(no log)'}`);
       }
     }

@@ -1,3 +1,5 @@
+<img src="https://raw.githubusercontent.com/cheminfo/inchi/main/packages/inchi.cheminfo.org/public/logo.svg" alt="" width="96" align="right" />
+
 # inchi-js
 
 A self-contained TypeScript wrapper around the official
@@ -21,7 +23,7 @@ import {
   molfileFromInchi,
 } from 'inchi-js';
 
-const ethanol = `\
+const ethanol = `
   Mrv2014 01010100002D
 
   3  2  0  0  0  0            999 V2000

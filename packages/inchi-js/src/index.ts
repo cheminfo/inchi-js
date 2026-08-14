@@ -9,6 +9,7 @@ export {
 export type { OclMoleculeFromInchiResult } from './oclMoleculeFromInchi.ts';
 export { structureFromInchi } from './structureFromInchi.ts';
 export { INCHI_C_VERSION } from './version.ts';
+export { loadInchiWasm } from './wasm/loadWasm.ts';
 export type {
   InchiFromMolfileOptions,
   InchiFromMolfileResult,
