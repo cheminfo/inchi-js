@@ -4,9 +4,9 @@
 #   Networking → Tunnels → Create a tunnel → Cloudflared connector →
 #   copy the token into .env as TUNNEL_TOKEN=... → open the tunnel →
 #   Published applications tab → add application with
-#   Service = HTTP, URL = inchi-cheminfo-org:80, hostname = inchi.lactame.com.
+#   Service = HTTP, URL = inchi-cheminfo-org:10523, hostname = inchi.lactame.com.
 #
-# Copy this file to compose.yaml and run: docker compose up -d
+# Select via COMPOSE_FILE=compose.cloudflared.yaml in .env, then: docker compose up -d
 
 services:
   inchi-cheminfo-org:
@@ -17,13 +17,17 @@ services:
     read_only: true
     restart: unless-stopped
     stop_grace_period: 30s
-    mem_limit: 512m
-    cpus: 0.5
+    mem_limit: 1g
+    cpus: 1
     pids_limit: 256
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    environment:
+      PORT: 10523
+    tmpfs:
+      - /tmp
     ulimits:
       core: 0
 

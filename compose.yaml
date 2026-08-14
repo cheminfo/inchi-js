@@ -1,0 +1,30 @@
+# Port-published deployment — serves the site, the API and its documentation
+# on http://localhost:${PORT}.
+# This is the file docker compose loads when COMPOSE_FILE is unset.
+#
+# cp .env.example .env, then: docker compose up -d
+
+services:
+  inchi-cheminfo-org:
+    image: ghcr.io/cheminfo/inchi:latest
+    build: .
+    container_name: inchi-cheminfo-org
+    init: true
+    read_only: true
+    restart: unless-stopped
+    stop_grace_period: 30s
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 256
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    environment:
+      PORT: 10523
+    ports:
+      - '${PORT:-10523}:10523'
+    tmpfs:
+      - /tmp
+    ulimits:
+      core: 0

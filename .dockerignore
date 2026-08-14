@@ -9,5 +9,6 @@ node_modules
 *.log
 .DS_Store
 .env
+compose*.yaml
 vendor/inchi/.git
 packages/inchi-js/build/out

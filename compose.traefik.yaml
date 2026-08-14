@@ -3,7 +3,7 @@
 # named `traefik`, with a `websecure` entrypoint and a `letsencrypt`
 # cert resolver. Adjust the Host(...) label below to your hostname.
 #
-# Copy this file to compose.yaml and run: docker compose up -d
+# Select via COMPOSE_FILE=compose.traefik.yaml in .env, then: docker compose up -d
 
 services:
   inchi-cheminfo-org:
@@ -14,13 +14,17 @@ services:
     read_only: true
     restart: unless-stopped
     stop_grace_period: 30s
-    mem_limit: 512m
-    cpus: 0.5
+    mem_limit: 1g
+    cpus: 1
     pids_limit: 256
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    environment:
+      PORT: 10523
+    tmpfs:
+      - /tmp
     ulimits:
       core: 0
     networks:
@@ -31,7 +35,7 @@ services:
       - 'traefik.http.routers.inchi-cheminfo-org.entrypoints=websecure'
       - 'traefik.http.routers.inchi-cheminfo-org.tls=true'
       - 'traefik.http.routers.inchi-cheminfo-org.tls.certresolver=letsencrypt'
-      - 'traefik.http.services.inchi-cheminfo-org.loadbalancer.server.port=80'
+      - 'traefik.http.services.inchi-cheminfo-org.loadbalancer.server.port=10523'
 
 networks:
   traefik:

@@ -1,6 +1,6 @@
 # InChI monorepo notes for Claude
 
-Monorepo with two workspaces:
+Monorepo with three workspaces:
 
 - `packages/inchi-js/` — the published library. Wraps the IUPAC InChI C
   library compiled to WASM. The WASM binary is gzip+base64-embedded in
@@ -9,8 +9,29 @@ Monorepo with two workspaces:
   so the npm package is fully self-contained — no fetch, no external
   file. The build script that produces those files needs `emcc`
   (emscripten) and `cmake`.
+- `packages/inchi-api/` — Fastify HTTP API (private, deployed as a
+  Docker image, not published to npm). Wraps `inchi-js` for single
+  structures and for whole CSV / TSV / XLSX / SDF files, detecting the
+  SMILES or molfile column on its own. Runs under Node's type stripping
+  — there is no build step, `node src/index.ts` is the entrypoint.
+  Reading uses `papaparse` / `exceljs` / `sdf-parser`, writing uses
+  `papaparse` / `exceljs` / `sdf-creator`, and SMILES become molfiles
+  through `openchemlib` (`Molecule.fromSmiles(...).toMolfile()`, which
+  invents 2D coordinates and wedges so stereo survives). A molfile's
+  first line is its title, which is often empty: never trim a molfile
+  before handing it to the InChI API, or the whole connection table
+  shifts up and the conversion fails. In production this same process
+  also serves the built playground at `/` and its Swagger UI at
+  `/documentation`, so the whole project is a single Docker image on a
+  single origin (port `10523`) — there is no separate API host.
 - `packages/inchi.cheminfo.org/` — React + Vite + BlueprintJS + react-ocl
-  playground. Reads `inchi-js` via the workspace.
+  playground. Reads `inchi-js` via the workspace. The Vite dev server
+  (`10524`) proxies `/v1`, `/health` and `/documentation` to the API so
+  relative links behave in dev exactly as they do in the image. The page
+  on show lives in the hash (`#/<tab>/<item>`); the query string carries
+  what configures the shell rather than what feeds it — `embed=1` drops
+  the header for a page framed in another site, and `hide=` switches
+  parts off (`src/state/shareConfig.ts`, offered by the Share dialog).
 
 `vendor/inchi/` is a git submodule pointing at
 [`IUPAC-InChI/InChI`](https://github.com/IUPAC-InChI/InChI). When the

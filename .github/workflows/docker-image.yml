@@ -1,9 +1,12 @@
 name: Docker image
 
+# The image serves the playground, the API and its documentation, so either
+# component's release tag rebuilds it.
 on:
   push:
     tags:
       - 'inchi.cheminfo.org-v*'
+      - 'inchi-api-v*'
   workflow_dispatch:
 
 jobs:
