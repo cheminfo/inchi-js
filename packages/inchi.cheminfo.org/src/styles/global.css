@@ -1,6 +1,34 @@
 :root {
+  /* Neutrals, geometry and type shared by every *.cheminfo.org site. */
+  --surface: #ffffff;
+  --surface-sunken: #f5f7fa;
+  --surface-raised: #ffffff;
+  --border: #dfe3e8;
+  --border-strong: #c3cad3;
+  --text: #16202c;
+  --text-muted: #5b6875;
+  --text-faint: #8a96a3;
+
+  --radius: 10px;
+  --radius-lg: 16px;
+  --shadow-sm: 0 1px 2px rgb(16 32 48 / 8%);
+  --shadow-md: 0 4px 14px rgb(16 32 48 / 10%);
+  --shadow-lg: 0 12px 32px rgb(16 32 48 / 16%);
+
+  --header-height: 3.5rem;
+  --page-max: 1400px;
+
+  /* The two colours this site owns: the ring, and the lens over it. */
   --brand: #5b21b6;
-  --brand-accent: #fcd34d;
+  --brand-alt: #fcd34d;
+
+  /* The mark's yellow reaches 1.5:1 on white — far too little for text, so set
+     text in a darkened one (4.9:1) of the same hue. */
+  --brand-alt-text: #a16207;
+
+  --accent: var(--brand);
+
+  color-scheme: light;
 }
 
 html,
@@ -8,10 +36,25 @@ body {
   margin: 0;
   padding: 0;
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu,
+    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
-  background: #f6f7f9;
-  color: #1c2127;
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+
+/* The size goes on `body`, never on `html`: `rem` must stay the browser's 16px
+   so the shared geometry measures the same on every site in the family. */
+body {
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+input,
+textarea,
+select,
+button {
+  font-family: inherit;
 }
 
 #root {
@@ -19,7 +62,7 @@ body {
 }
 
 .app-shell {
-  max-width: 1400px;
+  max-width: var(--page-max);
   margin: 0 auto;
   padding: 16px;
 }
@@ -30,39 +73,117 @@ body {
   padding: 8px;
 }
 
-/* A link that hides the menu keeps the page it opens; only the strip goes. */
-.tab-list-hidden .bp6-tab-list {
-  display: none;
-}
-
 .app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 16px;
-  padding-bottom: 10px;
-  border-bottom: 3px solid var(--brand-accent);
+  position: sticky;
+  z-index: 20;
+  top: 0;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
 }
 
-.app-title {
+.app-header__inner {
   display: flex;
+  height: var(--header-height);
+  max-width: var(--page-max);
   align-items: center;
-  gap: 10px;
-  margin: 0;
-  font-size: 22px;
-  color: #111418;
+  padding: 0 16px;
+  margin: 0 auto;
+  gap: 1rem;
 }
 
-.app-title-site {
+.brand {
+  display: flex;
+  align-items: center;
+  color: var(--text);
+  font-weight: 700;
+  gap: 0.55rem;
+}
+
+.brand:hover {
+  text-decoration: none;
+}
+
+.brand-mark {
+  display: block;
+  flex: none;
+}
+
+.wordmark {
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.wordmark__lead {
   color: var(--brand);
 }
 
-.app-logo {
-  display: block;
-  width: 34px;
-  height: 34px;
+.wordmark__dot {
+  color: var(--text-faint);
+}
+
+.wordmark__alt {
+  color: var(--brand-alt-text);
+}
+
+/* Five pages, a dropdown and four outside links: let them scroll rather than
+   wrap the bar into two rows. */
+.app-header-nav {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 0.15rem;
+  scrollbar-width: thin;
+}
+
+.app-header-sep {
+  width: 1px;
+  height: 1.5rem;
+  flex: none;
+  margin: 0 0.35rem;
+  background: var(--border);
+}
+
+/* Carried by a link, a button and the More trigger alike, so the whole row
+   reads as one menu. */
+.nav-link {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.4rem 0.7rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.nav-link:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.nav-link--active {
+  background: color-mix(in oklab, var(--accent) 12%, white);
+  color: var(--accent);
+}
+
+/* The tagline says what the tool is — too long for the bar, so it sits on its
+   own line directly under it rather than being dropped. */
+.app-tagline {
+  max-width: var(--page-max);
+  padding: 0.6rem 16px 0;
+  margin: 0 auto;
+  color: var(--text-muted);
+  font-size: 0.875rem;
 }
 
 .panel {
@@ -197,34 +318,6 @@ body {
   border-radius: 4px;
   padding: 12px;
   min-height: 240px;
-}
-
-/* --- More dropdown, sitting in the root tab list ----------------------- */
-
-.bp6-tab-list .more-tab.bp6-button {
-  align-self: stretch;
-  min-height: 40px;
-  padding: 0;
-  gap: 4px;
-  font-size: 16px;
-  font-weight: 400;
-  border-radius: 0;
-  background: none;
-  box-shadow: none;
-}
-
-/* Blueprint adds a margin-right to every button child; the gap alone spaces them. */
-.bp6-tab-list .more-tab.bp6-button > * {
-  margin: 0;
-}
-
-.bp6-tab-list .more-tab.bp6-button:hover {
-  color: #215db0;
-}
-
-.bp6-tab-list .more-tab.bp6-button.bp6-active {
-  color: #215db0;
-  box-shadow: inset 0 -3px 0 #215db0;
 }
 
 /* --- Guide ------------------------------------------------------------- */

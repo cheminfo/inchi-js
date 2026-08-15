@@ -1,8 +1,9 @@
-import { Button, Tab, Tabs } from '@blueprintjs/core';
+import { Icon } from '@blueprintjs/core';
 import { useSignals } from '@preact/signals-react/runtime';
 import { INCHI_C_VERSION } from 'inchi-js';
 import { useState } from 'react';
 
+import { BrandMark, Wordmark } from './components/Brand.tsx';
 import { InchiToStructurePanel } from './components/InchiToStructurePanel.tsx';
 import { MoreMenu } from './components/MoreMenu.tsx';
 import { MorePanel } from './components/MorePanel.tsx';
@@ -38,59 +39,48 @@ export function App() {
   const embedded = isEmbedded();
 
   return (
-    <div className={embedded ? 'app-shell app-shell-embedded' : 'app-shell'}>
-      {!embedded && <AppHeader />}
+    <>
+      {!embedded && <AppHeader tabId={tabId} />}
 
-      <Tabs
-        id="root-tabs"
-        size="large"
-        className={isHidden('tabs') ? 'tab-list-hidden' : undefined}
-        selectedTabId={tabId}
-        onChange={selectTab}
-        renderActiveTabPanelOnly
-      >
-        <Tab
-          id="convert"
-          title="Convert"
-          panel={
-            <div className="panel-grid" style={{ marginTop: 12 }}>
-              {!isHidden('structure') && <StructureToInchiPanel />}
-              {!isHidden('inchi') && <InchiToStructurePanel />}
-            </div>
-          }
-        />
-        <Tab id="batch" title="Batch convert" panel={<FileConvertPanel />} />
-        <Tab
-          id="tutorial"
-          title="Tutorial"
-          panel={
-            <div style={{ marginTop: 12 }}>
-              <Tutorial />
-            </div>
-          }
-        />
-        <Tab
-          id="exercises"
-          title="Exercises"
-          panel={
-            <div style={{ marginTop: 12 }}>
-              <Exercises />
-            </div>
-          }
-        />
-        <Tab
-          id="cheatsheet"
-          title="Cheatsheet"
-          panel={
-            <div style={{ marginTop: 12 }}>
-              <Cheatsheet />
-            </div>
-          }
-        />
-        <MoreMenu selected={tabId} onSelect={selectTab} />
-      </Tabs>
+      <div className={embedded ? 'app-shell app-shell-embedded' : 'app-shell'}>
+        {isMoreTab(tabId) ? (
+          <MorePanel tab={tabId} />
+        ) : (
+          <RootPanel tab={tabId} />
+        )}
+      </div>
+    </>
+  );
+}
 
-      {isMoreTab(tabId) && <MorePanel tab={tabId} />}
+/** The five pages of the daily flow, in the order the menu lists them. */
+const ROOT_TABS = [
+  { id: 'convert', title: 'Convert' },
+  { id: 'batch', title: 'Batch convert' },
+  { id: 'tutorial', title: 'Tutorial' },
+  { id: 'exercises', title: 'Exercises' },
+  { id: 'cheatsheet', title: 'Cheatsheet' },
+] as const;
+
+/**
+ * The page the hash addresses, for the tabs that are not behind More.
+ * @param props - The active tab.
+ * @param props.tab - Id of the page to render.
+ * @returns The page.
+ */
+function RootPanel(props: { tab: string }) {
+  useSignals();
+  const { tab } = props;
+
+  if (tab === 'batch') return <FileConvertPanel />;
+  if (tab === 'tutorial') return <Tutorial />;
+  if (tab === 'exercises') return <Exercises />;
+  if (tab === 'cheatsheet') return <Cheatsheet />;
+
+  return (
+    <div className="panel-grid">
+      {!isHidden('structure') && <StructureToInchiPanel />}
+      {!isHidden('inchi') && <InchiToStructurePanel />}
     </div>
   );
 }
@@ -98,59 +88,89 @@ export function App() {
 /**
  * The title bar: what the site is, where the engine and the API live, and the
  * dialog that builds a link — or an iframe — onto the page on show.
+ * @param props - The active tab.
+ * @param props.tabId - Id of the page on show, so the menu can mark it.
  * @returns The header.
  */
-function AppHeader() {
+function AppHeader(props: { tabId: string }) {
+  const { tabId } = props;
   const [sharing, setSharing] = useState(false);
 
   return (
-    <div className="app-header">
-      <h1 className="app-title">
-        <img className="app-logo" src="/logo.svg" alt="" />
-        <span className="app-title-site">inchi.cheminfo.org</span> — InChI
-        playground
-      </h1>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-        {!isHidden('links') && (
-          <>
-            <a
-              href="https://github.com/IUPAC-InChI/InChI"
-              target="_blank"
-              rel="noreferrer"
-              style={{ fontSize: 13 }}
-              title="Version of the IUPAC InChI C library compiled to the embedded WASM"
+    <>
+      <header className="app-header">
+        <div className="app-header__inner">
+          <a href="#/convert" className="brand" title="inchi.cheminfo.org">
+            <BrandMark />
+            <Wordmark />
+          </a>
+          <nav className="app-header-nav">
+            {!isHidden('tabs') && (
+              <>
+                {ROOT_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    className={
+                      tab.id === tabId
+                        ? 'nav-link nav-link--active'
+                        : 'nav-link'
+                    }
+                    onClick={() => selectTab(tab.id)}
+                  >
+                    {tab.title}
+                  </button>
+                ))}
+                <MoreMenu selected={tabId} onSelect={selectTab} />
+              </>
+            )}
+            {!isHidden('links') && (
+              <>
+                <span className="app-header-sep" />
+                <a
+                  className="nav-link"
+                  href="https://github.com/IUPAC-InChI/InChI"
+                  target="_blank"
+                  rel="noreferrer"
+                  title="Version of the IUPAC InChI C library compiled to the embedded WASM"
+                >
+                  InChI v{INCHI_C_VERSION}
+                </a>
+                <a
+                  className="nav-link"
+                  href="/documentation"
+                  target="_blank"
+                  rel="noreferrer"
+                  title="HTTP API: convert a structure, or a whole CSV / TSV / XLSX / SDF file, to InChI and InChIKey"
+                >
+                  API
+                </a>
+                <a
+                  className="nav-link"
+                  href="https://github.com/cheminfo/inchi"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Source
+                </a>
+              </>
+            )}
+            <button
+              type="button"
+              className="nav-link"
+              title="Share a link to this page, or frame it in your own site"
+              onClick={() => setSharing(true)}
             >
-              IUPAC InChI v{INCHI_C_VERSION}
-            </a>
-            <a
-              href="/documentation"
-              target="_blank"
-              rel="noreferrer"
-              style={{ fontSize: 13 }}
-              title="HTTP API: convert a structure, or a whole CSV / TSV / XLSX / SDF file, to InChI and InChIKey"
-            >
-              API
-            </a>
-            <a
-              href="https://github.com/cheminfo/inchi"
-              target="_blank"
-              rel="noreferrer"
-              style={{ fontSize: 13 }}
-            >
-              source
-            </a>
-          </>
-        )}
-        <Button
-          size="small"
-          icon="share"
-          title="Share a link to this page, or frame it in your own site"
-          onClick={() => setSharing(true)}
-        >
-          Share
-        </Button>
-      </div>
+              <Icon icon="share" size={14} />
+              Share
+            </button>
+          </nav>
+        </div>
+      </header>
+      <p className="app-tagline">
+        InChI playground — structure to InChI and back, in your browser
+      </p>
       {sharing && <ShareDialog isOpen onClose={() => setSharing(false)} />}
-    </div>
+    </>
   );
 }

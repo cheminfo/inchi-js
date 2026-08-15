@@ -1,4 +1,4 @@
-import { Button, Menu, MenuItem, Popover } from '@blueprintjs/core';
+import { Icon, Menu, MenuItem, Popover } from '@blueprintjs/core';
 
 import type { MoreTabId } from './moreTabs.ts';
 import { MORE_TABS, isMoreTab } from './moreTabs.ts';
@@ -12,8 +12,10 @@ export interface MoreMenuProps {
 }
 
 /**
- * The More dropdown, rendered inside the root tab list beside the tabs.
- * It opens a menu of the pages that are not part of the daily flow.
+ * The More dropdown, rendered in the header bar beside the pages. It opens a
+ * menu of the pages that are not part of the daily flow, and carries
+ * `nav-link` so it reads as one of the menu items rather than as a button
+ * dropped among them.
  * @param props - The active tab and the selection callback.
  * @returns The dropdown trigger.
  */
@@ -39,13 +41,13 @@ export function MoreMenu(props: MoreMenuProps) {
         </Menu>
       }
     >
-      <Button
-        className="more-tab"
-        variant="minimal"
-        active={active}
-        endIcon="caret-down"
-        text="More"
-      />
+      <button
+        type="button"
+        className={active ? 'nav-link nav-link--active' : 'nav-link'}
+      >
+        More
+        <Icon icon="caret-down" size={14} />
+      </button>
     </Popover>
   );
 }
