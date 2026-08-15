@@ -7,7 +7,7 @@
 
 services:
   inchi-cheminfo-org:
-    image: ghcr.io/cheminfo/inchi:latest
+    image: ${IMAGE_NAME:-ghcr.io/cheminfo/inchi}:${IMAGE_TAG:-latest}
     build: .
     container_name: inchi-cheminfo-org
     init: true

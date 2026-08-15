@@ -131,6 +131,13 @@ cp .env.example .env             # then uncomment one COMPOSE_FILE line
 docker compose up -d             # or: docker compose up -d --build
 ```
 
+`.env` also carries `IMAGE_NAME` and `IMAGE_TAG`, which every compose file
+reads (`${IMAGE_NAME:-ghcr.io/cheminfo/inchi}:${IMAGE_TAG:-latest}`).
+`deploy.sh` rewrites `IMAGE_TAG` so each build lands on its own immutable
+tag and the previous image stays on the host to roll back to — do not edit
+it by hand. Left unset, both fall back to `ghcr.io/cheminfo/inchi:latest`,
+so a bare checkout still starts with no `.env` at all.
+
 ### 1. Direct port mapping (default)
 
 Publishes the container on a host port (default `10523`). Useful for
