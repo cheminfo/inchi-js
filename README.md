@@ -1,5 +1,3 @@
-<img src="https://raw.githubusercontent.com/cheminfo/inchi-js/main/logo.svg" alt="" width="96" align="right" />
-
 # inchi-js
 
 [![NPM version](https://img.shields.io/npm/v/inchi-js.svg)](https://www.npmjs.com/package/inchi-js)
