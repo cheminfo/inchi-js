@@ -1,17 +1,11 @@
 node_modules
 .claude
 coverage
-dist
 lib
 .DS_Store
-.env
+.deploy
 *.log
 
-# playwright e2e output
-playwright-report
-test-results
-.last-run.json
-
-# build artifacts
-packages/inchi-js/build/out
-packages/inchi-js/build/emsdk
+# WASM build artifacts
+build/out
+build/emsdk

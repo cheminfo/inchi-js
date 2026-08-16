@@ -1,13 +1,5 @@
 name: Node.js CI
 
-# Custom workflow (does not use the shared zakodium/workflows reusable)
-# because the IUPAC InChI regression tests require the `vendor/inchi`
-# git submodule, which the shared workflow does not initialize.
-# `npm test` runs both workspaces — including the 4,190+ molfile → InChI
-# regression cases against the TypeScript source and the bundled
-# `lib/inchi-js.js` artifact — plus type-check, eslint and prettier
-# across the whole repository.
-
 on:
   push:
     branches:
@@ -16,13 +8,15 @@ on:
 
 jobs:
   nodejs:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          submodules: recursive
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 24
-      - run: npm ci
-      - run: npm test
+    # Documentation: https://github.com/zakodium/workflows#nodejs-ci
+    uses: zakodium/workflows/.github/workflows/nodejs.yml@nodejs-v1
+    with:
+      lint-check-types: true
+      # The IUPAC regression suites read their fixtures from `vendor/inchi`,
+      # which the shared checkout does not fetch.
+      test-setup-command: git -C "$GITHUB_WORKSPACE" submodule update --init --recursive
+      # `test-bundle` re-runs the whole suite against the bundled `lib/`
+      # artifact that ships to npm, and is what makes `npmPack.test.ts` run.
+      # It goes first: it starts by wiping `coverage/`, which the run after
+      # it rewrites for the upload.
+      npm-test-command: npm run test-bundle && npm run test-only

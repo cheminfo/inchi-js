@@ -1,184 +1,28 @@
-<img src="packages/inchi.cheminfo.org/public/logo.svg" alt="" width="96" align="right" />
+<img src="https://raw.githubusercontent.com/cheminfo/inchi-js/main/logo.svg" alt="" width="96" align="right" />
 
-# inchi
+# inchi-js
 
-Monorepo for the IUPAC InChI WebAssembly engine: a TypeScript library
-that wraps the official IUPAC InChI C library compiled to WebAssembly,
-an HTTP API that converts structures and whole files, and an
-interactive web playground using react-ocl.
+[![NPM version](https://img.shields.io/npm/v/inchi-js.svg)](https://www.npmjs.com/package/inchi-js)
+[![npm download](https://img.shields.io/npm/dm/inchi-js.svg)](https://www.npmjs.com/package/inchi-js)
+[![license](https://img.shields.io/npm/l/inchi-js.svg)](https://github.com/cheminfo/inchi-js/blob/main/LICENSE)
 
-## Packages
+A self-contained TypeScript wrapper around the official
+[IUPAC InChI](https://www.inchi-trust.org/) C library compiled to
+WebAssembly. Convert MDL Molfiles to InChI/InChIKey and back, in Node
+and in the browser, without any external file or fetch — the WASM
+binary is gzip-compressed and base64-embedded inside the package.
 
-| Path                                                           | Name                 | Published as | Purpose                                                                                                                                             |
-| -------------------------------------------------------------- | -------------------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`packages/inchi-js/`](packages/inchi-js/)                     | `inchi-js`           | npm          | The WASM-backed engine. Converts Molfile ↔ InChI ↔ InChIKey. Self-contained — WASM is base64-embedded.                                              |
-| [`packages/inchi-api/`](packages/inchi-api/)                   | `inchi-api`          | Docker image | HTTP API. Converts one structure, or appends InChI/InChIKey to a CSV, TSV, XLSX, or SDF file. Also serves the playground and its own documentation. |
-| [`packages/inchi.cheminfo.org/`](packages/inchi.cheminfo.org/) | `inchi.cheminfo.org` | static site  | Interactive playground (React + react-ocl) for the library.                                                                                         |
+Try it in the browser on [inchi.cheminfo.org](https://inchi.cheminfo.org)
+— the playground, its file-conversion API and their sources live in
+[cheminfo/inchi.cheminfo.org](https://github.com/cheminfo/inchi.cheminfo.org).
 
-## InChI source
-
-The official IUPAC InChI C library lives as a git submodule under
-[`vendor/inchi/`](vendor/inchi/), pinned to a known commit of
-[`IUPAC-InChI/InChI`](https://github.com/IUPAC-InChI/InChI). Clone with:
+## Installation
 
 ```bash
-git clone --recurse-submodules https://github.com/cheminfo/inchi.git
-# or if you already cloned:
-git submodule update --init --recursive
+npm install inchi-js
 ```
 
-## Local development
-
-```bash
-npm install
-npm run dev
-```
-
-Vite serves the website at `http://localhost:5173/`. The library is
-resolved directly from `packages/inchi-js/src/index.ts` via a vite
-alias, so edits to the engine show up live.
-
-## Building the WASM module
-
-The library ships with a pre-built, base64-embedded WASM module at
-[`packages/inchi-js/src/wasm/data.ts`](packages/inchi-js/src/wasm/data.ts).
-To rebuild it from the InChI C source you need
-[Emscripten](https://emscripten.org/) (`emcc`) and `cmake` ≥ 3.15:
-
-```bash
-npm run build-wasm
-```
-
-This:
-
-1. Configures and compiles `vendor/inchi/INCHI-1-SRC/INCHI_BASE` and
-   `vendor/inchi/INCHI-1-SRC/INCHI_API/libinchi` plus the IUPAC
-   `inchi_web.c` JSON wrapper with `emcc` into a `.wasm` + JS glue.
-2. Gzips and base64-encodes the resulting `.wasm` binary into
-   `packages/inchi-js/src/wasm/data.ts` (next to the auto-generated JS
-   glue at `packages/inchi-js/src/wasm/glue.ts`).
-3. Generates a TypeScript module that decodes + decompresses the
-   binary at load time and instantiates a WebAssembly instance.
-
-The pre-built artifact is checked in so consumers of the npm package
-never need a C toolchain.
-
-## Scripts
-
-| Command              | Effect                                                                                                |
-| -------------------- | ----------------------------------------------------------------------------------------------------- |
-| `npm run dev`        | Start the API (`10523`) and the playground (`10524`, proxying `/v1` and `/documentation` to the API). |
-| `npm run dev-api`    | Start the HTTP API alone on port `10523` (`node --watch`).                                            |
-| `npm run dev-site`   | Start the playground alone (vite dev server on `10524`).                                              |
-| `npm run build`      | Build the library and the playground production bundle.                                               |
-| `npm run build-lib`  | Compile the library to `packages/inchi-js/lib`.                                                       |
-| `npm run build-wasm` | Rebuild the WASM module from `vendor/inchi/` (requires emscripten + cmake).                           |
-| `npm test`           | Both workspaces' `vitest run --coverage` + type-check + repo-wide eslint and prettier.                |
-| `npm run test-only`  | Tests only, skip lint/types.                                                                          |
-| `npm run eslint`     | Lint the whole repository (`eslint .`).                                                               |
-| `npm run prettier`   | Check formatting across the whole repository (`prettier --check .`).                                  |
-
-## Sharing and embedding the playground
-
-The page on show lives in the hash, so the address is the thing to hand
-out. The **Share** button in the header builds it, together with the
-iframe that frames it in another site:
-
-```
-inchi.cheminfo.org/?embed=1&hide=tabs#/convert
-inchi.cheminfo.org/?embed=1&hide=tabs,inchi#/convert
-inchi.cheminfo.org/?embed=1&hide=tabs,list,answers#/exercises/formula-paracetamol
-inchi.cheminfo.org/?embed=1#/tutorial/anatomy
-```
-
-- `embed=1` drops the header, so only the page shows through the frame.
-- `hide=` switches parts off: `tabs` (the menu), `links`, `structure` and
-  `inchi` (the two halves of Convert), `steps` (the tutorial step picker),
-  `list`, `hints`, `answers` and `clear` (the exercises). A key this
-  version does not know is ignored, so an older link still opens.
-
-## HTTP API (`inchi-api`)
-
-```bash
-npm run dev-api
-curl 'http://localhost:10523/v1/inchi?structure=CCO'
-curl -X POST http://localhost:10523/v1/convert -F file=@compounds.csv -o compounds-inchi.csv
-```
-
-`POST /v1/convert` takes a CSV, TSV, XLSX, or SDF file, detects the
-structure column on its own (SMILES or molfile), and returns the same
-file with `InChI` and `InChIKey` appended — or any other supported
-format via `?output=sdf|csv|tsv|xlsx|json`. Swagger UI is served at
-`/documentation`. See
-[`packages/inchi-api/README.md`](packages/inchi-api/README.md).
-
-## Deployment (`inchi.cheminfo.org`)
-
-Everything ships as **one** Docker image built from
-[`Dockerfile`](Dockerfile): a Fastify process that serves the API
-under `/v1`, its Swagger UI under `/documentation`, and the built
-playground at `/` — one origin, one container, port `10523`. Three
-compose files cover the common deployment modes; select one by
-uncommenting a `COMPOSE_FILE` line in `.env`, then start it. Built
-images are published to `ghcr.io/cheminfo/inchi:latest`, so a
-deployment host only needs Docker — no Node.js, no submodule, no
-build step.
-
-Every mode starts the same way:
-
-```bash
-cp .env.example .env             # then uncomment one COMPOSE_FILE line
-docker compose up -d             # or: docker compose up -d --build
-```
-
-`.env` also carries `IMAGE_NAME` and `IMAGE_TAG`, which every compose file
-reads (`${IMAGE_NAME:-ghcr.io/cheminfo/inchi}:${IMAGE_TAG:-latest}`).
-`deploy.sh` rewrites `IMAGE_TAG` so each build lands on its own immutable
-tag and the previous image stays on the host to roll back to — do not edit
-it by hand. Left unset, both fall back to `ghcr.io/cheminfo/inchi:latest`,
-so a bare checkout still starts with no `.env` at all.
-
-### 1. Direct port mapping (default)
-
-Publishes the container on a host port (default `10523`). Useful for
-local testing or behind any reverse proxy you already operate. This is
-what `docker compose` uses when no `COMPOSE_FILE` is set.
-
-```bash
-COMPOSE_FILE=compose.yaml        # in .env; adjust PORT if 10523 is taken
-```
-
-### 2. Cloudflare Tunnel
-
-Runs a `cloudflared` sidecar that connects to a tunnel you created in
-the Cloudflare dashboard — the container is reachable over HTTPS at
-the public hostname you assign (default `inchi.lactame.com`) without
-opening any inbound port.
-
-```bash
-COMPOSE_FILE=compose.cloudflared.yaml   # in .env, plus TUNNEL_TOKEN=...
-```
-
-Cloudflare dashboard steps: **Networking → Tunnels → Create a tunnel
-→ Cloudflared connector**, copy the token into `.env`, then under
-**Published applications** add `Service = HTTP`, `URL =
-inchi-cheminfo-org:10523`, hostname = `inchi.lactame.com`.
-
-### 3. Traefik reverse proxy
-
-For hosts that already run Traefik on a shared `traefik` Docker
-network with a `websecure` entrypoint and a `letsencrypt` cert
-resolver. No port is published on the host — Traefik routes traffic
-to the container over the shared network.
-
-```bash
-COMPOSE_FILE=compose.traefik.yaml       # in .env
-```
-
-Adjust the ``Host(`...`)`` label in `compose.traefik.yaml` to your
-hostname; the default is `inchi.cheminfo.org`.
-
-## Library quick start
+## Quick start
 
 ```ts
 import {
@@ -187,7 +31,7 @@ import {
   molfileFromInchi,
 } from 'inchi-js';
 
-const molfile = `
+const ethanol = `
   Mrv2014 01010100002D
 
   3  2  0  0  0  0            999 V2000
@@ -199,23 +43,286 @@ const molfile = `
 M  END
 `;
 
-const { inchi, auxinfo } = await inchiFromMolfile(molfile);
+const { inchi } = await inchiFromMolfile(ethanol);
 // → 'InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3'
 
 const { inchikey } = await inchikeyFromInchi(inchi);
 // → 'LFQSCWFLJHTTHZ-UHFFFAOYSA-N'
 
-const { molfile: regenerated } = await molfileFromInchi(inchi);
+const { molfile } = await molfileFromInchi(inchi);
+// → reconstructed Molfile
 ```
 
-See [`packages/inchi-js/README.md`](packages/inchi-js/README.md) for
-the full library docs.
+## API
 
-## Credits
+Every conversion is `async` because the WASM module is initialised
+lazily on first call (and cached forever after).
 
-This library is a thin TypeScript wrapper around the official IUPAC
-InChI C software (MIT-licensed). The `inchi_web.c` JSON-emitting
-wrapper layer and the emscripten build approach are adapted from
-[`IUPAC-InChI/InChI-Web-Demo`](https://github.com/IUPAC-InChI/InChI-Web-Demo)
-(also MIT). All trademarks and the InChI algorithm itself belong to
-IUPAC.
+### `inchiFromMolfile(molfile, options?)`
+
+```ts
+inchiFromMolfile(molfile: string, options?: {
+  /** Raw InChI option string, e.g. '-AuxNone -DoNotAddH'. Default: '' */
+  options?: string;
+}): Promise<{
+  returnCode: -1 | 0 | 1;
+  inchi: string;
+  auxinfo: string;
+  message: string;
+  log: string;
+}>;
+```
+
+Wraps `MakeINCHIFromMolfileText`. `returnCode === 0` means success;
+`1` is a warning (the result is still usable, see `message`/`log`);
+`-1` is an error.
+
+The InChI option string is documented in the IUPAC InChI
+[Technical Manual](https://www.inchi-trust.org/download/104/InChI_TechMan.pdf).
+Common options include `-AuxNone`, `-DoNotAddH`, `-FixedH`, `-RecMet`,
+`-SUU`, `-SLUUD`.
+
+### `inchikeyFromInchi(inchi)`
+
+```ts
+inchikeyFromInchi(inchi: string): Promise<{
+  returnCode: -1 | 0 | 1;
+  inchikey: string;
+  message: string;
+}>;
+```
+
+Wraps `GetINCHIKeyFromINCHI`. Returns the 27-character InChIKey for a
+given InChI string.
+
+### `molfileFromInchi(inchi, options?)`
+
+```ts
+molfileFromInchi(inchi: string, options?: {
+  options?: string;
+}): Promise<{
+  returnCode: -1 | 0 | 1;
+  molfile: string;
+  message: string;
+  log: string;
+}>;
+```
+
+Wraps `GetStructFromINCHIEx` + `GetINCHIEx` with `-OutputSDF`.
+Reconstructs an MDL Molfile from an InChI string.
+
+### `molfileFromAuxinfo(auxinfo, options?)`
+
+```ts
+molfileFromAuxinfo(auxinfo: string, options?: {
+  /** Do not add explicit hydrogens. Default: false */
+  doNotAddH?: boolean;
+  /** Differentiate "unknown" from "undefined" stereo. Default: false */
+  diffUnkUndfStereo?: boolean;
+}): Promise<{
+  returnCode: -1 | 0 | 1;
+  molfile: string;
+  message: string;
+  log: string;
+}>;
+```
+
+Wraps `Get_inchi_Input_FromAuxInfo`. The MDL chiral flag stored in the
+AuxInfo is preserved when emitting the Molfile.
+
+### `structureFromInchi(inchi, options?)`
+
+```ts
+structureFromInchi(inchi: string, options?: {
+  /** Raw option string passed verbatim to `GetStructFromINCHIEx`. Default: '' */
+  options?: string;
+}): Promise<{
+  returnCode: -1 | 0 | 1;
+  atoms: StructureAtom[];
+  stereo: StructureStereo[];
+  message: string;
+  log: string;
+}>;
+```
+
+Wraps `GetStructFromINCHIEx` and returns the raw connection table —
+atoms with their adjacency lists and the 0D stereo descriptors —
+without going through a Molfile.
+
+### `oclMoleculeFromInchi(inchi, OCL, options?)`
+
+```ts
+oclMoleculeFromInchi(inchi: string, OCL: typeof import('openchemlib'), options?: {
+  options?: string;
+}): Promise<{
+  molecule: Molecule | null;
+  returnCode: -1 | 0 | 1;
+  message: string;
+  log: string;
+}>;
+```
+
+Builds an [openchemlib](https://github.com/cheminfo/openchemlib-js)
+`Molecule` (with 2D coordinates and wedge bonds) from an InChI.
+`openchemlib` is an **optional** peer dependency: the module is passed
+in by the caller, so a project that never calls this function does not
+have to install it.
+
+```ts
+import * as OCL from 'openchemlib';
+import { oclMoleculeFromInchi } from 'inchi-js';
+
+const { molecule } = await oclMoleculeFromInchi('InChI=1S/H2O/h1H2', OCL);
+```
+
+`oclMoleculeFromStructure(structure, OCL)` does the same conversion
+from an already-parsed `structureFromInchi` result.
+
+### `loadInchiWasm()`
+
+Eagerly preloads the WASM module so the first conversion isn't slowed
+by the (one-time, ~100ms) instantiation. Returns the underlying
+Emscripten `Module` object.
+
+```ts
+import { loadInchiWasm } from 'inchi-js';
+
+await loadInchiWasm();
+```
+
+## How the WASM binary is shipped
+
+The library is intentionally fetch-free. At build time
+([build/build-wasm.sh](build/build-wasm.sh)):
+
+1. The IUPAC InChI C source from `vendor/inchi/INCHI-1-SRC/{INCHI_BASE,INCHI_API/libinchi}/src/*.c`
+   is linked with [`build/inchi_web.c`](build/inchi_web.c) (a JSON-emitting
+   wrapper adapted from
+   [`IUPAC-InChI/InChI-Web-Demo`](https://github.com/IUPAC-InChI/InChI-Web-Demo))
+   via Emscripten + CMake.
+2. The resulting `inchi.wasm` is gzip-compressed (`level: 9`) and
+   base64-encoded into [`src/wasm/data.ts`](src/wasm/data.ts).
+3. The Emscripten JS glue is rewritten as an ES module in
+   [`src/wasm/glue.ts`](src/wasm/glue.ts) and the factory function is
+   given the decoded bytes via the `wasmBinary` option — bypassing
+   `fetch` entirely. The runtime bridge that decodes the bytes and
+   instantiates the module lives in [`src/wasm/loadWasm.ts`](src/wasm/loadWasm.ts).
+
+The generated `data.ts` and `glue.ts` files are committed, so
+consumers never need a C toolchain.
+
+## Test coverage vs. the upstream IUPAC suite
+
+`npm test` runs the full upstream IUPAC test corpus against the
+WebAssembly build, in addition to the small canonical tests under
+[`src/__tests__/`](src/__tests__/):
+
+| Folder                                                                                                           | Mirrors                                                | Coverage                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`__tests__/regression/inchiSdf.test.ts`](src/__tests__/regression/inchiSdf.test.ts)                             | `INCHI-1-TEST/tests/test_library/data/ci/inchi.sdf.gz` | 2,190 structures — every InChI must equal the reference SQLite snapshot, plus InChIKey parity on the first 100. Honors the upstream `expected_failures` list (4 known regressions). |
+| [`__tests__/regression/mculeSdf.test.ts`](src/__tests__/regression/mculeSdf.test.ts)                             | `INCHI-1-TEST/tests/test_library/data/ci/mcule.sdf.gz` | 2,000 mcule.com structures vs. the reference SQLite snapshot.                                                                                                                       |
+| [`__tests__/executable/github52.test.ts`](src/__tests__/executable/github52.test.ts)                             | `test_executable/test_github_52.py`                    | V3000 empty bond block parsing.                                                                                                                                                     |
+| [`__tests__/executable/testIo.test.ts`](src/__tests__/executable/testIo.test.ts)                                 | `test_executable/test_io.py`                           | V3000 I/O edge cases: SCSR rejection, >999-atom rejection, `-LargeMolecules` switch, 999-atom acceptance.                                                                           |
+| [`__tests__/executable/organometallicsPubchem.test.ts`](src/__tests__/executable/organometallicsPubchem.test.ts) | `test_executable/test_organometallics_pubchem.py`      | Every structure in the PubChem organometallics fixture must yield an InChI under `-RecMet`.                                                                                         |
+| [`__tests__/executable/aromaticIons.test.ts`](src/__tests__/executable/aromaticIons.test.ts)                     | `test_executable/test_aromatic_ions.py`                | Three aromatic-bond cation/anion cases — `xfail` in upstream and here (`test.fails`).                                                                                               |
+
+**Out of scope:** the upstream
+[`INCHI-1-TEST/tests/test_unit/`](https://github.com/IUPAC-InChI/InChI/tree/dev/INCHI-1-TEST/tests/test_unit)
+C++ unit tests (`test_strutil.cpp`, `test_ichican2.cpp`, …) exercise
+internal C functions that are not part of the public InChI API
+exposed via WebAssembly, and would require a separate native build.
+The upstream `test_executable` cases that depend on InChI CLI stderr
+parsing (`test_alex_clark_structures`, `test_organometallics_ccdc`,
+`test_github_67`, `test_github_40`, `test_pubchem_107`) are all marked
+`xfail` upstream and are skipped here as well — they document broken
+behavior rather than asserted invariants.
+
+## Benchmark vs. the native `inchi-1` binary
+
+[`benchmark/bench-inchi.ts`](benchmark/bench-inchi.ts) runs the WASM
+build against the official IUPAC `inchi-1` executable on the same
+2,190-structure corpus used by the regression tests
+(`vendor/inchi/INCHI-1-TEST/tests/test_library/data/ci/inchi.sdf.gz`,
+avg ~3.7 KB / molfile). It reports three modes side by side:
+
+1. **WASM, per molfile** — the realistic JS use case: one
+   `inchiFromMolfile()` call per structure inside a single Node
+   process.
+2. **Native, batch** — the realistic CLI use case: one `inchi-1`
+   process that walks the whole SDF.
+3. **Native, per call** — for a 50-structure sample, spawn `inchi-1`
+   once per molfile. This isolates the per-structure C kernel cost
+   from process-startup overhead.
+
+Results on an Apple M1 with `inchi-1` 1.07.5 and Node 26:
+
+| Mode                                                      | ms / structure | structures / s |
+| --------------------------------------------------------- | -------------- | -------------- |
+| WASM `inchi-js`, per molfile                              | 0.69           | ~1,450         |
+| Native `inchi-1`, batch (1 process for the whole SDF)     | 0.43           | ~2,325         |
+| Native `inchi-1`, per molfile (separate process per call) | ~3.1           | ~320           |
+
+- WASM is **~1.6× slower** than the native binary running in batch mode.
+- Spawning `inchi-1` per molfile is **~7× slower** than batching — the
+  per-call mode exists to make that anti-pattern visible.
+- **2,188 / 2,190 InChIs match** the native binary byte-for-byte; the
+  two differences correspond to the known upstream regressions
+  documented in
+  [inchiSdf.test.ts](src/__tests__/regression/inchiSdf.test.ts).
+- WASM cold start (module instantiation + gzip decompression) is
+  ~60 ms and only paid once per process.
+
+Run it with:
+
+```bash
+npm run benchmark                                  # full 2,190-structure corpus
+node benchmark/bench-inchi.ts <sdf-path> [limit]   # custom corpus / limit
+INCHI_BIN=/path/to/inchi-1 npm run benchmark       # use a specific native binary
+```
+
+## Working on the library
+
+The IUPAC InChI C source is a git submodule under
+[`vendor/inchi/`](vendor/inchi/), pinned to a known commit of
+[`IUPAC-InChI/InChI`](https://github.com/IUPAC-InChI/InChI). It carries
+both the C sources the WASM is compiled from and the reference corpora
+the regression tests run against, so a checkout needs it:
+
+```bash
+git clone --recurse-submodules https://github.com/cheminfo/inchi-js.git
+# or, in an existing clone:
+git submodule update --init --recursive
+```
+
+| Command               | Effect                                                                     |
+| --------------------- | -------------------------------------------------------------------------- |
+| `npm run test-only`   | The vitest suite, including the IUPAC regression corpora.                  |
+| `npm test`            | Tests, the same suite against the bundle, type-check, eslint and prettier. |
+| `npm run tsc`         | Bundle `src/` into `lib/` (ESM + minified + `.d.ts`).                      |
+| `npm run test-bundle` | Run the suite against `lib/inchi-js.js` instead of the source.             |
+| `npm run build-wasm`  | Rebuild the embedded WASM from `vendor/inchi/` (needs emscripten + cmake). |
+| `npm run benchmark`   | Compare the WASM build with the native `inchi-1` binary.                   |
+
+The suite needs Node 22 or later: the regression references are read
+with `node:sqlite`.
+
+## Rebuilding the WASM
+
+You only need this if you bump the InChI C version or change
+`build/inchi_web.c`. Requirements:
+
+- [Emscripten](https://emscripten.org/) ≥ 3 (`emcc`, `emcmake`)
+- CMake ≥ 3.15
+
+```bash
+git submodule update --init --recursive
+npm run build-wasm    # rebuilds src/wasm/data.ts + src/wasm/glue.ts
+npm run tsc           # recompiles the lib/ output
+npm test              # runs the test suite to verify
+```
+
+## License
+
+MIT — Copyright (c) cheminfo. See [LICENSE](./LICENSE) for the full
+text and the acknowledgement of the bundled IUPAC InChI software
+(also MIT, Copyright (c) 2024 InChI Project).

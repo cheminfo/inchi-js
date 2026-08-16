@@ -1,5 +1,0 @@
-id,name,smiles
-1,ethanol,CCO
-2,benzene,c1ccccc1
-3,L-alanine,C[C@H](N)C(=O)O
-4,broken,not a smiles

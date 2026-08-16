@@ -1,36 +1,74 @@
 {
-  "name": "inchi-monorepo",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Monorepo for the inchi-js library, the inchi-api service, and the inchi.cheminfo.org playground.",
+  "name": "inchi-js",
+  "version": "0.2.0",
+  "license": "MIT",
+  "description": "InChI engine in TypeScript: convert Molfile ↔ InChI ↔ InChIKey. Wraps the official IUPAC InChI C library compiled to WebAssembly and base64-embedded so the package is self-contained.",
+  "keywords": [
+    "inchi",
+    "inchikey",
+    "molfile",
+    "cheminformatics",
+    "iupac",
+    "wasm",
+    "webassembly"
+  ],
+  "author": "Luc Patiny",
+  "homepage": "https://inchi.cheminfo.org",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cheminfo/inchi-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cheminfo/inchi-js/issues"
+  },
   "type": "module",
-  "workspaces": [
-    "packages/inchi-js",
-    "packages/inchi-api",
-    "packages/inchi.cheminfo.org"
+  "exports": {
+    ".": {
+      "types": "./lib/inchi-js.d.ts",
+      "default": "./lib/inchi-js.js"
+    }
+  },
+  "files": [
+    "lib"
   ],
   "scripts": {
-    "build": "npm run build-lib && npm run build -w inchi.cheminfo.org",
-    "build-lib": "npm run tsc -w inchi-js",
-    "build-wasm": "npm run build-wasm -w inchi-js",
-    "check-types": "npm run build-lib && npm run check-types -w inchi-js && npm run check-types -w inchi-api && npm run check-types -w inchi.cheminfo.org",
-    "dev": "concurrently \"npm run dev -w inchi-api\" \"npm run dev -w inchi.cheminfo.org\"",
-    "dev-api": "npm run dev -w inchi-api",
-    "dev-site": "npm run dev -w inchi.cheminfo.org",
+    "benchmark": "node benchmark/bench-inchi.ts",
+    "build-wasm": "bash build/build-wasm.sh",
+    "check-types": "tsc --noEmit",
+    "clean": "rimraf coverage lib",
     "eslint": "eslint .",
     "eslint-fix": "eslint . --fix",
+    "prepack": "npm run tsc",
     "prettier": "prettier --check .",
     "prettier-write": "prettier --write .",
-    "test": "npm run test-only && npm run check-types && npm run eslint && npm run prettier",
-    "test-only": "npm run test-only -w inchi-js && npm run test-bundle -w inchi-js && npm run test-only -w inchi-api && npm run test-only -w inchi.cheminfo.org"
+    "test": "npm run test-bundle && npm run test-only && npm run check-types && npm run eslint && npm run prettier",
+    "test-bundle": "npm run tsc && vitest run --config vitest.config.bundle.ts",
+    "test-only": "vitest run --coverage",
+    "tsc": "npm run clean && node build/bundle.js"
+  },
+  "dependencies": {
+    "uint8-base64": "^2.0.0"
+  },
+  "peerDependencies": {
+    "openchemlib": "^9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "openchemlib": {
+      "optional": true
+    }
   },
   "devDependencies": {
-    "concurrently": "^10.0.4",
+    "@types/node": "^26.2.0",
+    "@vitest/coverage-v8": "^4.1.10",
+    "@zakodium/tsconfig": "^1.0.5",
+    "dts-bundle-generator": "^9.5.1",
+    "esbuild": "^0.28.2",
     "eslint": "^9.39.4",
-    "eslint-config-cheminfo-react": "^20.1.0",
     "eslint-config-cheminfo-typescript": "^22.1.0",
-    "globals": "^17.11.0",
+    "openchemlib": "^9.25.0",
     "prettier": "^3.9.6",
-    "typescript": "^6.0.3"
+    "rimraf": "^6.1.3",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
   }
 }
