@@ -19,7 +19,7 @@ export default defineConfig({
   resolve: {
     alias: [
       {
-        find: /^(?:\.\.\/){1,2}(?:inchiFromMolfile|inchikeyFromInchi|molfileFromInchi|molfileFromAuxinfo|structureFromInchi)\.ts$/,
+        find: /^(?:\.\.\/){1,2}(?:inchiFromMolfile|inchikeyFromInchi|molfileFromInchi|molfileFromAuxinfo|structureFromInchi|oclMoleculeFromInchi|wasm\/loadWasm)\.ts$/,
         replacement: bundlePath,
       },
     ],
